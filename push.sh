@@ -27,4 +27,4 @@ git push
 
 echo
 echo "✓ Pushed to GitHub. Her PC will pull this on the next 'run.bat'."
-echo "  (You can verify the new version on github.com/YOUR_USERNAME/trade-signals)"
+echo "  (Verify on https://github.com/lionrevamped-cell/trade-signals)"
