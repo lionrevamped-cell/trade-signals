@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -65,6 +66,22 @@ def _log(msg: str) -> None:
     print(f"[updater] {msg}", flush=True)
 
 
+# ── SSL ──────────────────────────────────────────────────────────────────────
+# Python on Windows ships without OS root certs, so urllib's default SSL
+# context fails on github.com with "unable to get local issuer certificate".
+# certifi bundles a fresh Mozilla CA bundle and is a transitive dep of
+# requests (which yfinance pulls in), so it's effectively always available.
+
+def _make_ssl_context() -> ssl.SSLContext | None:
+    """Return an SSL context that works on Windows. Uses certifi's bundle
+    if available; falls back to the default context otherwise."""
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return ssl.create_default_context()
+
+
 # ── config ────────────────────────────────────────────────────────────────────
 
 def _load_config() -> dict | None:
@@ -85,7 +102,7 @@ def _http_get(url: str, timeout: int = NETWORK_TIMEOUT) -> bytes:
         "User-Agent": "trade-signals-updater/1.0",
         "Accept":     "application/vnd.github+json",
     })
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    with urllib.request.urlopen(req, timeout=timeout, context=_make_ssl_context()) as r:
         return r.read()
 
 
@@ -100,7 +117,9 @@ def _download_zip(user: str, repo: str, branch: str, dest_path: Path) -> None:
     """Download the branch as a zip. GitHub serves a fresh zip every time."""
     url = f"https://github.com/{user}/{repo}/archive/refs/heads/{branch}.zip"
     req = urllib.request.Request(url, headers={"User-Agent": "trade-signals-updater/1.0"})
-    with urllib.request.urlopen(req, timeout=NETWORK_TIMEOUT * 6) as r, open(dest_path, "wb") as f:
+    with urllib.request.urlopen(req, timeout=NETWORK_TIMEOUT * 6,
+                                context=_make_ssl_context()) as r, \
+         open(dest_path, "wb") as f:
         shutil.copyfileobj(r, f)
 
 
