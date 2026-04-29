@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Live Performance — FVG & OB Scanner</title>
+<style>
+:root {
+  --bg:#0a0d14; --surface:#11151e; --surface2:#151a26; --surface3:#1c2230;
+  --border:#252c3e; --text:#e6ecf4; --dim:#8a94a7; --mono:ui-monospace,Menlo,monospace;
+  --long:#00d97e; --short:#ff3d5a; --fvg:#38bdf8; --ob:#a78bfa;
+  --gold:#f5a623; --accent:#38bdf8; --r:12px;
+}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif}
+.wrap{max-width:1320px;margin:0 auto;padding:24px 20px 60px}
+h1{margin:0 0 6px;font-size:28px;font-weight:800;letter-spacing:-.3px}
+h2{margin:28px 0 10px;font-size:18px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
+.sub{font-size:13px;color:var(--dim);margin-bottom:22px}
+.back{display:inline-flex;align-items:center;gap:6px;color:var(--dim);text-decoration:none;font-size:13px;margin-bottom:14px}
+.back:hover{color:var(--accent)}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:18px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.stat-val{font-size:24px;font-weight:800;font-family:var(--mono)}
+.stat-lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.7px;margin-top:2px}
+.stat-good{color:var(--long)} .stat-bad{color:var(--short)} .stat-meh{color:var(--gold)}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--dim);font-weight:600;padding:10px 12px;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.6px}
+td{padding:10px 12px;border-bottom:1px solid var(--surface3);font-family:var(--mono)}
+tr:hover{background:var(--surface2)}
+.bar{display:inline-block;height:6px;background:var(--accent);border-radius:3px;vertical-align:middle}
+.bar-bg{display:inline-block;width:80px;height:6px;background:var(--surface3);border-radius:3px;vertical-align:middle;position:relative}
+.bar-fill{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:3px}
+.bar-good{background:var(--long)} .bar-bad{background:var(--short)} .bar-meh{background:var(--gold)}
+.empty{color:var(--dim);font-size:13px;text-align:center;padding:40px 0}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;margin-left:6px}
+.tag-pass{background:rgba(0,217,126,.14);color:var(--long);border:1px solid rgba(0,217,126,.4)}
+.tag-fail{background:rgba(255,61,90,.12);color:var(--short);border:1px solid rgba(255,61,90,.4)}
+.tag-warn{background:rgba(245,166,35,.12);color:var(--gold);border:1px solid rgba(245,166,35,.4)}
+.tag-neutral{background:var(--surface3);color:var(--dim);border:1px solid var(--border)}
+.note{background:var(--surface2);border-left:3px solid var(--accent);padding:10px 14px;font-size:13px;line-height:1.5;margin:10px 0;color:var(--dim);border-radius:4px}
+.note b{color:var(--text)}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:800px){.grid-2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a href="/" class="back">← Back to scanner</a>
+<h1>📊 Live Performance — Agent Backtesting</h1>
+<div class="sub">
+  Every signal the scanner fires is tracked live. Win rate and avg-R are computed from actual price outcomes as they happen — not from a historical backtest.
+  Compare this to the backtest predictions to catch calibration drift early.
+</div>
+
+<div id="stats-top" class="stats-row"></div>
+
+<h2>Performance by Score Bucket</h2>
+<div class="card">
+  <div class="note">
+    <b>The scoring is calibrated so higher score → higher win rate.</b> If score 9-10 ever drops below score 6-7 in win rate on live data, the calibration has drifted and we should re-run the backtest.
+  </div>
+  <table id="tbl-score">
+    <thead>
+      <tr>
+        <th>Score</th>
+        <th>Total</th>
+        <th>Resolved</th>
+        <th>Wins</th>
+        <th>Losses</th>
+        <th>Pending</th>
+        <th>Expired</th>
+        <th>Win %</th>
+        <th>Avg R</th>
+      </tr>
+    </thead>
+    <tbody><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
+  </table>
+</div>
+
+<h2>Factor Edge — Live vs Backtest</h2>
+<div class="card">
+  <div class="note">
+    Each factor: comparison of WITH vs WITHOUT. A positive Δ means the factor helps (signals with it win more than signals without). Backtest-expected edges are in parentheses.
+  </div>
+  <table id="tbl-factor">
+    <thead>
+      <tr>
+        <th>Factor</th>
+        <th>With n</th>
+        <th>With Win %</th>
+        <th>Without n</th>
+        <th>Without Win %</th>
+        <th>Δ Win %</th>
+        <th>Backtest Δ</th>
+        <th>Verdict</th>
+      </tr>
+    </thead>
+    <tbody><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+  </table>
+</div>
+
+<h2>Refresh Settings</h2>
+<div class="card" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+  <label style="font-size:13px;color:var(--dim)">Lookback:</label>
+  <select id="lookback" onchange="load()" style="background:var(--surface3);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px">
+    <option value="7">Last 7 days</option>
+    <option value="30" selected>Last 30 days</option>
+    <option value="90">Last 90 days</option>
+    <option value="9999">All time</option>
+  </select>
+  <span style="font-size:11px;color:var(--dim)" id="gen-at">—</span>
+  <button onclick="load()" style="background:var(--accent);color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600">↻ Refresh</button>
+</div>
+
+</div>
+
+<script>
+// Backtest-expected edges (Δ win%), shown alongside live results.
+const BACKTEST_EDGE = {
+  pd_aligned:     +6.1,
+  wick_tagged:    +7.5,
+  bos:            +2.6,
+  liq_sweep:      -6.9,
+  htf_zone_align: -6.3,
+  sweep:          -6.5,
+  vol_strong:     -0.6,
+};
+
+async function load() {
+  const days = parseInt(document.getElementById('lookback').value, 10) || 30;
+  try {
+    const r = await fetch('/api/performance?lookback_days=' + days);
+    const d = await r.json();
+    renderTop(d);
+    renderScoreTable(d.by_score || {});
+    renderFactorTable(d.by_factor || {});
+    if (d.generated_at) {
+      document.getElementById('gen-at').textContent =
+        'Updated ' + new Date(d.generated_at).toLocaleTimeString();
+    }
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function cls(v, good, bad) {
+  if (v == null) return 'stat-meh';
+  return v > good ? 'stat-good' : v < bad ? 'stat-bad' : 'stat-meh';
+}
+
+function renderTop(d) {
+  const t = d.total;
+  const el = document.getElementById('stats-top');
+  if (!t) {
+    el.innerHTML = `<div class="stat"><div class="stat-val" style="color:var(--dim)">—</div><div class="stat-lbl">No signals tracked yet. Let the scanner run for a few scans.</div></div>`;
+    return;
+  }
+  el.innerHTML = `
+    <div class="stat"><div class="stat-val">${t.n}</div><div class="stat-lbl">Signals tracked</div></div>
+    <div class="stat"><div class="stat-val">${t.resolved}</div><div class="stat-lbl">Resolved</div></div>
+    <div class="stat"><div class="stat-val">${t.pending}</div><div class="stat-lbl">Pending</div></div>
+    <div class="stat"><div class="stat-val ${cls(t.win_pct, 40, 33)}">${t.win_pct.toFixed(1)}%</div><div class="stat-lbl">Win Rate</div></div>
+    <div class="stat"><div class="stat-val ${cls(t.avg_r, 0.1, 0)}">${(t.avg_r >=0 ? '+' : '') + t.avg_r.toFixed(2)}R</div><div class="stat-lbl">Avg R / trade</div></div>
+    <div class="stat"><div class="stat-val">${t.expired}</div><div class="stat-lbl">Expired</div></div>
+  `;
+}
+
+function barCell(pct, colourClass) {
+  if (pct == null || isNaN(pct)) return '—';
+  const w = Math.max(0, Math.min(100, pct));
+  return `<div class="bar-bg"><div class="bar-fill ${colourClass}" style="width:${w}%"></div></div> ${pct.toFixed(1)}%`;
+}
+
+function renderScoreTable(by_score) {
+  const tbody = document.querySelector('#tbl-score tbody');
+  const scores = Object.keys(by_score).map(Number).sort((a,b)=>a-b);
+  if (!scores.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty">No tracked signals yet.</td></tr>'; return; }
+  tbody.innerHTML = scores.map(sc => {
+    const s = by_score[sc];
+    const winColour = s.win_pct > 45 ? 'bar-good' : s.win_pct > 35 ? 'bar-meh' : 'bar-bad';
+    const avgRCls   = s.avg_r > 0.1 ? 'stat-good' : s.avg_r > 0 ? 'stat-meh' : 'stat-bad';
+    return `<tr>
+      <td><b>${sc}</b></td>
+      <td>${s.n}</td>
+      <td>${s.resolved}</td>
+      <td style="color:var(--long)">${s.wins}</td>
+      <td style="color:var(--short)">${s.losses}</td>
+      <td>${s.pending}</td>
+      <td>${s.expired}</td>
+      <td>${barCell(s.win_pct, winColour)}</td>
+      <td class="${avgRCls}">${(s.avg_r>=0?'+':'') + s.avg_r.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderFactorTable(by_factor) {
+  const tbody = document.querySelector('#tbl-factor tbody');
+  const factors = Object.keys(by_factor);
+  if (!factors.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">No tracked signals yet.</td></tr>'; return; }
+  tbody.innerHTML = factors.map(f => {
+    const w = by_factor[f].with;
+    const wo = by_factor[f].without;
+    const expectedEdge = BACKTEST_EDGE[f];
+    const edge = (w && wo) ? (w.win_pct - wo.win_pct) : null;
+    let verdict, verdictCls;
+    if (edge == null) { verdict = 'Not enough data'; verdictCls = 'tag-neutral'; }
+    else if (expectedEdge == null) { verdict = 'No backtest ref'; verdictCls = 'tag-neutral'; }
+    else if (Math.abs(edge - expectedEdge) < 5) { verdict = 'On track'; verdictCls = 'tag-pass'; }
+    else if ((edge > 0) === (expectedEdge > 0)) { verdict = 'Correct sign'; verdictCls = 'tag-warn'; }
+    else { verdict = 'DRIFT'; verdictCls = 'tag-fail'; }
+    const fmt = v => v == null ? '—' : (v.win_pct?.toFixed?.(1) ?? '—') + '%';
+    return `<tr>
+      <td><b>${f.replace(/_/g, ' ')}</b></td>
+      <td>${w?.n ?? '—'}</td>
+      <td>${fmt(w)}</td>
+      <td>${wo?.n ?? '—'}</td>
+      <td>${fmt(wo)}</td>
+      <td class="${edge > 0 ? 'stat-good' : edge < 0 ? 'stat-bad' : ''}">${edge == null ? '—' : ((edge>0?'+':'') + edge.toFixed(1)) + '%'}</td>
+      <td style="color:var(--dim)">${expectedEdge != null ? ((expectedEdge>0?'+':'') + expectedEdge.toFixed(1)) + '%' : '—'}</td>
+      <td><span class="tag ${verdictCls}">${verdict}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+load();
+setInterval(load, 30000);  // auto-refresh every 30s
+</script>
+</body>
+</html>

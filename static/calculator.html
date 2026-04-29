@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Trade Calculator — FVG & OB</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#060c18;--surf:#0c1628;--surf2:#122038;--surf3:#192d4e;
+  --bdr:#1d3660;--text:#c8d8f0;--dim:#4a6590;
+  --long:#00d97e;--long-bg:rgba(0,217,126,.12);--long-bd:rgba(0,217,126,.3);
+  --short:#ff3d5a;--short-bg:rgba(255,61,90,.12);--short-bd:rgba(255,61,90,.3);
+  --gold:#f5a623;--gold-bg:rgba(245,166,35,.12);--gold-bd:rgba(245,166,35,.3);
+  --fvg:#38bdf8;--ob:#a78bfa;--r:10px;
+  --mono:'SF Mono','Fira Code','Consolas',monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;line-height:1.5;min-height:100vh}
+
+/* ── HEADER ────────────────────────────────────────────── */
+header{
+  background:rgba(6,12,24,.96);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--bdr);
+  padding:12px 24px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;
+}
+.logo{font-size:18px;font-weight:800;letter-spacing:-.3px}
+.logo span{color:var(--fvg)}
+.btn{
+  padding:7px 16px;border-radius:6px;cursor:pointer;font-size:13px;
+  font-weight:600;border:1px solid var(--bdr);background:var(--surf2);
+  color:var(--text);transition:all .15s;text-decoration:none;display:inline-flex;align-items:center;gap:6px;
+}
+.btn:hover{border-color:var(--fvg);color:var(--fvg)}
+
+/* ── LAYOUT ────────────────────────────────────────────── */
+.page{max-width:1200px;margin:0 auto;padding:24px 20px 60px;display:grid;grid-template-columns:380px 1fr;gap:20px;align-items:start}
+@media(max-width:820px){.page{grid-template-columns:1fr}}
+
+/* ── PANELS ────────────────────────────────────────────── */
+.panel{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;overflow:hidden}
+.panel-head{padding:14px 18px;background:var(--surf2);border-bottom:1px solid var(--bdr);font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px}
+.panel-body{padding:18px}
+
+/* ── FORM ELEMENTS ─────────────────────────────────────── */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--dim);margin-bottom:5px}
+.field input,.field select{
+  width:100%;background:var(--surf2);border:1px solid var(--bdr);
+  color:var(--text);padding:9px 12px;border-radius:7px;font-size:14px;
+  transition:border-color .15s;outline:none;font-family:inherit;
+}
+.field input:focus,.field select:focus{border-color:var(--fvg)}
+.field select option{background:var(--surf2)}
+.field .hint{font-size:11px;color:var(--dim);margin-top:4px}
+.field .hint.live{color:var(--long)}
+
+/* ── DIRECTION TOGGLE ──────────────────────────────────── */
+.dir-toggle{display:flex;gap:0;border-radius:8px;overflow:hidden;border:1px solid var(--bdr)}
+.dir-btn{
+  flex:1;padding:9px;cursor:pointer;border:none;background:transparent;
+  color:var(--dim);font-size:13px;font-weight:700;letter-spacing:.5px;transition:all .15s;
+}
+.dir-btn.active-long  {background:var(--long-bg); color:var(--long)}
+.dir-btn.active-short {background:var(--short-bg);color:var(--short)}
+
+/* ── ZONE LIST ─────────────────────────────────────────── */
+.zone-list{display:flex;flex-direction:column;gap:6px;margin-bottom:4px}
+.zone-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 12px;border-radius:8px;
+  border:1px solid var(--bdr);background:var(--surf2);cursor:pointer;transition:all .15s;
+}
+.zone-item:hover{border-color:var(--dim)}
+.zone-item.selected-long {border-color:var(--long-bd);background:var(--long-bg)}
+.zone-item.selected-short{border-color:var(--short-bd);background:var(--short-bg)}
+.zone-item input[type=radio]{accent-color:var(--fvg);flex-shrink:0}
+.zi-info{flex:1;min-width:0}
+.zi-top{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.zi-prices{font-size:11px;color:var(--dim);font-family:var(--mono);margin-top:2px}
+.zi-badges{display:flex;gap:4px;flex-wrap:wrap}
+.badge{padding:1px 7px;border-radius:3px;font-size:10px;font-weight:700}
+.b-long {background:var(--long-bg); color:var(--long); border:1px solid var(--long-bd)}
+.b-short{background:var(--short-bg);color:var(--short);border:1px solid var(--short-bd)}
+.b-gold {background:var(--gold-bg); color:var(--gold); border:1px solid var(--gold-bd)}
+.b-fvg  {background:rgba(56,189,248,.1); color:var(--fvg); border:1px solid rgba(56,189,248,.25)}
+.b-ob   {background:rgba(167,139,250,.1);color:var(--ob);  border:1px solid rgba(167,139,250,.25)}
+.b-tf   {background:var(--surf3);color:var(--dim);border:1px solid var(--bdr)}
+.iz-chip{background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold-bd);padding:1px 6px;border-radius:3px;font-size:10px;font-weight:800;animation:blink 1.2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── LEVERAGE SLIDER ───────────────────────────────────── */
+.lev-row{display:flex;align-items:center;gap:10px}
+.lev-row input[type=range]{flex:1;accent-color:var(--fvg)}
+.lev-val{font-size:18px;font-weight:800;color:var(--fvg);font-family:var(--mono);min-width:52px;text-align:right}
+
+/* ── RESULTS PANEL ─────────────────────────────────────── */
+.res-section{margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--bdr)}
+.res-section:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.res-title{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);margin-bottom:10px}
+
+/* Position info grid */
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.info-box{background:var(--surf2);border:1px solid var(--bdr);border-radius:8px;padding:10px 14px}
+.info-box .ib-val{font-size:20px;font-weight:800;font-family:var(--mono);line-height:1.1}
+.info-box .ib-lbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.ib-val.c-fvg{color:var(--fvg)}
+.ib-val.c-gold{color:var(--gold)}
+.ib-val.c-long{color:var(--long)}
+.ib-val.c-short{color:var(--short)}
+.ib-val.c-red{color:#ff6b6b}
+
+/* Liq warning */
+.liq-box{
+  border-radius:8px;padding:12px 16px;margin-bottom:10px;
+  display:flex;align-items:center;gap:12px;
+}
+.liq-box.safe{background:rgba(0,217,126,.08);border:1px solid var(--long-bd)}
+.liq-box.warn{background:rgba(245,166,35,.1); border:1px solid var(--gold-bd)}
+.liq-box.danger{background:rgba(255,61,90,.1);border:1px solid var(--short-bd)}
+.liq-icon{font-size:22px;flex-shrink:0}
+.liq-text .liq-price{font-size:16px;font-weight:800;font-family:var(--mono)}
+.liq-text .liq-sub{font-size:11px;color:var(--dim)}
+
+/* P&L rows */
+.pnl-row{
+  display:grid;grid-template-columns:80px 1fr auto auto;
+  align-items:center;gap:8px;padding:9px 12px;
+  border-radius:8px;margin-bottom:5px;
+}
+.pnl-row.sl-row  {background:rgba(255,61,90,.08); border:1px solid rgba(255,61,90,.2)}
+.pnl-row.tp1-row {background:rgba(0,217,126,.07); border:1px solid rgba(0,217,126,.15)}
+.pnl-row.tp2-row {background:rgba(0,217,126,.10); border:1px solid rgba(0,217,126,.2)}
+.pnl-row.tp3-row {background:rgba(0,217,126,.14); border:1px solid rgba(0,217,126,.28)}
+.pnl-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.pnl-row.sl-row  .pnl-lbl{color:var(--short)}
+.pnl-row.tp1-row .pnl-lbl,
+.pnl-row.tp2-row .pnl-lbl,
+.pnl-row.tp3-row .pnl-lbl{color:var(--long)}
+.pnl-price{font-family:var(--mono);font-size:13px;font-weight:700}
+.pnl-row.sl-row  .pnl-price{color:var(--short)}
+.pnl-row.tp1-row .pnl-price,
+.pnl-row.tp2-row .pnl-price,
+.pnl-row.tp3-row .pnl-price{color:var(--long)}
+.pnl-usd{font-family:var(--mono);font-size:13px;font-weight:800;text-align:right}
+.pnl-row.sl-row  .pnl-usd{color:var(--short)}
+.pnl-row.tp1-row .pnl-usd,
+.pnl-row.tp2-row .pnl-usd,
+.pnl-row.tp3-row .pnl-usd{color:var(--long)}
+.pnl-rr{font-size:10px;color:var(--dim);text-align:right;font-family:var(--mono)}
+
+/* Risk gauge */
+.risk-gauge-wrap{margin:8px 0}
+.risk-gauge-bar{
+  width:100%;height:10px;border-radius:5px;position:relative;
+  background:linear-gradient(to right,#00d97e 0%,#f5a623 40%,#ff3d5a 80%);
+  margin:6px 0;
+}
+.risk-gauge-pin{
+  position:absolute;top:-5px;width:4px;height:20px;
+  background:#fff;border-radius:2px;transform:translateX(-50%);
+  box-shadow:0 0 6px rgba(255,255,255,.6);transition:left .3s;
+}
+.risk-gauge-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--dim);font-family:var(--mono)}
+
+/* Recommended leverage table */
+.rec-table{width:100%;border-collapse:collapse;font-size:12px}
+.rec-table th{padding:5px 10px;text-align:left;color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--bdr)}
+.rec-table td{padding:7px 10px;border-bottom:1px solid rgba(29,54,96,.3);font-family:var(--mono)}
+.rec-table tr.current-row td{background:rgba(56,189,248,.07);border-color:rgba(56,189,248,.2)}
+.rec-table tr:last-child td{border-bottom:none}
+.rec-check{font-size:13px}
+
+/* Tips box */
+.tip-box{
+  background:var(--surf2);border:1px solid var(--bdr);border-radius:8px;
+  padding:12px 14px;font-size:12px;line-height:1.7;
+}
+.tip-box .tip-title{font-weight:700;font-size:13px;margin-bottom:6px;color:var(--gold)}
+.tip-box p{color:var(--dim);margin-bottom:4px}
+.tip-box strong{color:var(--text)}
+.tip-box .tip-good{color:var(--long)}
+.tip-box .tip-bad {color:var(--short)}
+
+/* ── MISC ──────────────────────────────────────────────── */
+.separator{border:none;border-top:1px solid var(--bdr);margin:16px 0}
+.no-zones{color:var(--dim);font-size:13px;text-align:center;padding:16px;background:var(--surf2);border-radius:8px}
+.loading-zones{color:var(--dim);font-size:12px;text-align:center;padding:12px}
+.fee-line{font-size:11px;color:var(--dim);text-align:right;margin-top:4px;font-family:var(--mono)}
+.total-line{font-size:12px;font-weight:700;margin-top:8px;display:flex;justify-content:space-between}
+
+/* ── BITMART SECTION ───────────────────────────────────── */
+.bm-panel{background:rgba(0,191,255,.04);border:1px solid rgba(0,191,255,.2);border-radius:10px;padding:16px;margin-bottom:0}
+.bm-hd{font-size:13px;font-weight:800;color:#00bfff;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.bm-ticket{background:var(--surf2);border:1px solid var(--bdr);border-radius:8px;padding:12px;margin-bottom:12px}
+.bm-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(29,54,96,.35)}
+.bm-row:last-child{border-bottom:none}
+.bm-lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.4px;min-width:90px}
+.bm-val{font-family:var(--mono);font-weight:700;font-size:13px;color:var(--text)}
+.copy-btn{background:transparent;border:1px solid var(--bdr);border-radius:4px;padding:1px 8px;cursor:pointer;font-size:10px;color:var(--dim);transition:all .15s;margin-left:8px;font-family:inherit}
+.copy-btn:hover{border-color:var(--fvg);color:var(--fvg)}
+.bm-steps{font-size:12px;color:var(--dim);line-height:1.9;margin-top:12px}
+.bm-steps ol{padding-left:20px;margin:4px 0}
+.bm-steps li{margin-bottom:3px}
+.bm-steps li strong{color:var(--text)}
+.bm-sv{color:var(--gold);font-family:var(--mono);font-weight:700}
+.bm-fund-box{margin-top:12px;padding:10px 12px;border-radius:7px;font-size:12px;line-height:1.7}
+.bm-fund-pay{background:rgba(255,61,90,.07);border:1px solid rgba(255,61,90,.25)}
+.bm-fund-recv{background:rgba(0,217,126,.07);border:1px solid rgba(0,217,126,.25)}
+.bm-fund-neu{background:var(--surf2);border:1px solid var(--bdr)}
+.bm-na{padding:16px;background:rgba(255,61,90,.05);border:1px solid rgba(255,61,90,.15);border-radius:8px;font-size:12px;color:var(--dim);text-align:center;line-height:1.8}
+.copy-all-btn{width:100%;margin-top:12px;padding:11px;background:rgba(0,191,255,.1);border:1px solid rgba(0,191,255,.3);border-radius:7px;color:#00bfff;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;letter-spacing:.3px;font-family:inherit}
+.copy-all-btn:hover{background:rgba(0,191,255,.18);border-color:rgba(0,191,255,.5)}
+/* Toast */
+#calc-toast{position:fixed;bottom:24px;right:24px;background:var(--surf2);border:1px solid var(--bdr);padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none;z-index:999}
+#calc-toast.show{opacity:1;transform:translateY(0)}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════════════ -->
+<header>
+  <div class="logo">⚡ <span>Trade</span> Calculator</div>
+  <a class="btn" href="/">← Back to Signals</a>
+</header>
+
+<div class="page">
+
+  <!-- ══════════════════════════════════════════════
+       LEFT — SETUP
+  ══════════════════════════════════════════════ -->
+  <div>
+
+    <!-- Asset + Zone selection -->
+    <div class="panel" style="margin-bottom:16px">
+      <div class="panel-head">📌 Step 1 — Select Asset & Zone</div>
+      <div class="panel-body">
+
+        <div class="field">
+          <label>Asset</label>
+          <select id="asset-select" onchange="onAssetChange()">
+            <option value="">Loading assets…</option>
+          </select>
+          <div class="hint live" id="asset-price-hint">Fetching price…</div>
+        </div>
+
+        <div class="field">
+          <label>Direction</label>
+          <div class="dir-toggle">
+            <button class="dir-btn active-long" id="btn-long"  onclick="setDir('LONG')">▲ LONG</button>
+            <button class="dir-btn"             id="btn-short" onclick="setDir('SHORT')">▼ SHORT</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Active Zones <span id="zone-count" style="color:var(--dim);font-weight:400">(loading…)</span></label>
+          <div class="zone-list" id="zone-list">
+            <div class="loading-zones">Loading zones…</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Trade inputs -->
+    <div class="panel">
+      <div class="panel-head">💰 Step 2 — Your Trade Setup</div>
+      <div class="panel-body">
+
+        <div class="field">
+          <label>Capital (your funds)</label>
+          <input type="number" id="i-capital" value="1000" min="1" step="10" oninput="calc()">
+          <div class="hint">Amount you are putting in (USDT / USD / INR)</div>
+        </div>
+
+        <div class="field">
+          <label>Leverage — <span id="lev-display" style="color:var(--gold);font-weight:800">10×</span></label>
+          <div class="lev-row">
+            <input type="range" id="i-leverage" min="1" max="100" value="10" step="1"
+                   oninput="document.getElementById('lev-display').textContent=this.value+'×';calc()">
+            <span class="lev-val" id="lev-val">10×</span>
+          </div>
+          <div class="hint" id="lev-hint">Position value: $10,000</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="field">
+            <label>Entry Price</label>
+            <input type="number" id="i-entry" step="any" oninput="calc()" placeholder="Auto from zone">
+          </div>
+          <div class="field">
+            <label>Stop Loss Price</label>
+            <input type="number" id="i-sl" step="any" oninput="calc()" placeholder="Auto from zone">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Exchange Fee Rate (%)</label>
+          <input type="number" id="i-fee" value="0.05" min="0" max="1" step="0.01" oninput="calc()">
+          <div class="hint">Taker fee per side. BitMart = 0.06%, Binance = 0.05%, Bybit = 0.055%, Zerodha = 0.03%</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       RIGHT — RESULTS
+  ══════════════════════════════════════════════ -->
+  <div class="panel" id="results-panel">
+    <div class="panel-head">📊 Results — Live Calculation</div>
+    <div class="panel-body" id="results-body">
+      <div style="text-align:center;padding:40px;color:var(--dim)">
+        Select an asset and fill in the trade setup to see results.
+      </div>
+    </div>
+  </div>
+
+</div><!-- .page -->
+
+<script>
+/* ── State ───────────────────────────────────────────── */
+let direction = 'LONG';
+let selectedZone = null;
+let assetPrice = null;
+let allZones = [];
+
+/* ── URL params (pre-fill from signal card) ──────────── */
+const P = new URLSearchParams(location.search);
+
+/* ── BitMart symbol mapping ──────────────────────────── */
+const BITMART_MAP = {
+  'BTC-USD': 'BTC_USDT', 'ETH-USD': 'ETH_USDT', 'BNB-USD': 'BNB_USDT',
+  'SOL-USD': 'SOL_USDT', 'XRP-USD': 'XRP_USDT', 'ADA-USD': 'ADA_USDT',
+  'AVAX-USD': 'AVAX_USDT','DOGE-USD': 'DOGE_USDT','DOT-USD': 'DOT_USDT',
+  'LINK-USD': 'LINK_USDT',
+};
+
+/* ── Init ────────────────────────────────────────────── */
+window.addEventListener('DOMContentLoaded', async () => {
+  await loadAssets();
+  // Pre-fill from URL if coming from a signal
+  if (P.get('ticker')) {
+    const sel = document.getElementById('asset-select');
+    if ([...sel.options].some(o => o.value === P.get('ticker'))) {
+      sel.value = P.get('ticker');
+    }
+    if (P.get('direction')) setDir(P.get('direction'));
+    await loadZones(P.get('ticker'));
+    if (P.get('entry')) document.getElementById('i-entry').value = P.get('entry');
+    if (P.get('sl'))    document.getElementById('i-sl').value    = P.get('sl');
+    calc();
+  }
+});
+
+/* ── Load asset dropdown ─────────────────────────────── */
+async function loadAssets() {
+  const res  = await fetch('/api/assets');
+  const data = await res.json();
+  const sel  = document.getElementById('asset-select');
+  sel.innerHTML = '<option value="">— Select asset —</option>';
+
+  const order = ['Crypto','Commodities','India Stocks','USA Stocks'];
+  order.forEach(cat => {
+    if (!data[cat]) return;
+    const grp = document.createElement('optgroup');
+    grp.label = cat;
+    data[cat].forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a.ticker;
+      const priceStr = a.price != null ? ` — ${fmtP(a.price)}` : '';
+      opt.textContent = `${a.name} (${a.ticker})${priceStr}`;
+      grp.appendChild(opt);
+    });
+    sel.appendChild(grp);
+  });
+
+  // If ticker in URL, select it
+  if (P.get('ticker')) sel.value = P.get('ticker');
+}
+
+/* ── Asset changed ───────────────────────────────────── */
+async function onAssetChange() {
+  const ticker = document.getElementById('asset-select').value;
+  if (!ticker) return;
+  document.getElementById('asset-price-hint').textContent = 'Loading…';
+  document.getElementById('zone-count').textContent = '(loading…)';
+  document.getElementById('zone-list').innerHTML = '<div class="loading-zones">Fetching active zones…</div>';
+  await loadZones(ticker);
+}
+
+async function loadZones(ticker) {
+  try {
+    const res  = await fetch(`/api/asset-zones?ticker=${encodeURIComponent(ticker)}`);
+    const data = await res.json();
+
+    assetPrice = data.current_price;
+    if (assetPrice != null) {
+      document.getElementById('asset-price-hint').textContent = `Current price: ${fmtP(assetPrice)}`;
+      if (!document.getElementById('i-entry').value)
+        document.getElementById('i-entry').value = assetPrice.toFixed(decimalPlaces(assetPrice));
+    } else {
+      document.getElementById('asset-price-hint').textContent = 'Price not available';
+    }
+
+    allZones = data.signals || [];
+    renderZoneList();
+    calc();
+  } catch(e) {
+    document.getElementById('zone-list').innerHTML = '<div class="no-zones">Could not load zones.</div>';
+  }
+}
+
+/* ── Render zone radio list ──────────────────────────── */
+function renderZoneList() {
+  const el = document.getElementById('zone-list');
+  // Filter zones to match selected direction
+  const zones = allZones.filter(z => z.direction === direction);
+  document.getElementById('zone-count').textContent = `(${zones.length} ${direction} zones)`;
+
+  if (!zones.length) {
+    el.innerHTML = `<div class="no-zones">No active ${direction} zones right now.<br><span style="font-size:11px">Enter entry & SL manually below.</span></div>`;
+    return;
+  }
+
+  el.innerHTML = zones.map((z, i) => {
+    const rb = z.reason.includes('+') ? 'b-gold' : z.reason === 'FVG' ? 'b-fvg' : 'b-ob';
+    const dirClass = z.direction === 'LONG' ? 'b-long' : 'b-short';
+    const izChip = z.in_zone ? '<span class="iz-chip">⚡ IN ZONE</span>' : '';
+    return `
+    <label class="zone-item" id="zone-item-${i}" onclick="selectZone(${i})">
+      <input type="radio" name="zone" value="${i}" ${i===0?'checked':''}>
+      <div class="zi-info">
+        <div class="zi-top">
+          <div class="zi-badges">
+            <span class="badge ${dirClass}">${z.direction}</span>
+            <span class="badge b-tf">${z.timeframe}</span>
+            <span class="badge ${rb}">${z.reason}</span>
+            ${izChip}
+          </div>
+        </div>
+        <div class="zi-prices">
+          Zone ${fmtP(z.zone_bottom)} – ${fmtP(z.zone_top)}
+          &nbsp;·&nbsp; SL ${fmtP(z.sl)}
+          &nbsp;·&nbsp; Dist ${z.dist_pct.toFixed(2)}%
+        </div>
+      </div>
+    </label>`;
+  }).join('');
+
+  // Auto-select first zone
+  if (zones.length > 0) selectZone(0);
+}
+
+function selectZone(i) {
+  const zones = allZones.filter(z => z.direction === direction);
+  if (!zones[i]) return;
+  selectedZone = zones[i];
+
+  // Update visual selection
+  document.querySelectorAll('.zone-item').forEach((el, idx) => {
+    el.className = 'zone-item' + (idx === i ? (direction==='LONG' ? ' selected-long' : ' selected-short') : '');
+  });
+  document.querySelectorAll('.zone-item input[type=radio]')[i]?.click();
+
+  // Fill entry and SL from zone
+  const entryEl = document.getElementById('i-entry');
+  const slEl    = document.getElementById('i-sl');
+
+  if (assetPrice)            entryEl.value = assetPrice.toFixed(decimalPlaces(assetPrice));
+  else if (selectedZone.entry) entryEl.value = selectedZone.entry.toFixed(decimalPlaces(selectedZone.entry));
+  slEl.value = selectedZone.sl.toFixed(decimalPlaces(selectedZone.sl));
+
+  calc();
+}
+
+/* ── Direction toggle ────────────────────────────────── */
+function setDir(d) {
+  direction = d;
+  document.getElementById('btn-long').className  = 'dir-btn' + (d==='LONG'  ? ' active-long'  : '');
+  document.getElementById('btn-short').className = 'dir-btn' + (d==='SHORT' ? ' active-short' : '');
+  selectedZone = null;
+  renderZoneList();
+  calc();
+}
+
+/* ══════════════════════════════════════════════════════
+   MAIN CALCULATOR
+══════════════════════════════════════════════════════ */
+function calc() {
+  const leverage = parseFloat(document.getElementById('i-leverage').value) || 10;
+  const capital  = parseFloat(document.getElementById('i-capital').value)  || 1000;
+  const entry    = parseFloat(document.getElementById('i-entry').value);
+  const sl       = parseFloat(document.getElementById('i-sl').value);
+  const feeRate  = parseFloat(document.getElementById('i-fee').value) / 100 || 0.0005;
+  const ticker   = P.get('ticker') || document.getElementById('asset-select').value || '';
+  const bmSym    = BITMART_MAP[ticker];
+
+  // Update leverage display
+  document.getElementById('lev-val').textContent     = leverage + '×';
+  document.getElementById('lev-display').textContent = leverage + '×';
+  document.getElementById('lev-hint').textContent    = `Position value: ${fmtUSD(capital * leverage)}`;
+
+  if (!entry || !sl) {
+    document.getElementById('results-body').innerHTML =
+      '<div style="text-align:center;padding:40px;color:var(--dim)">Enter entry and stop loss prices to calculate.</div>';
+    return;
+  }
+
+  /* ── Core calculations ─────────────────────────── */
+  const isLong     = direction === 'LONG';
+  const posValue   = capital * leverage;       // total position in $
+  const units      = posValue / entry;         // number of coins/shares
+
+  // Liquidation price (isolated margin, ~0.5% maintenance margin)
+  const MM = 0.005;
+  const liqPrice = isLong
+    ? entry * (1 - (1 - MM) / leverage)
+    : entry * (1 + (1 - MM) / leverage);
+
+  // Risk
+  const riskPerUnit = Math.abs(entry - sl);
+  const riskUSD     = riskPerUnit * units;
+  const riskPct     = riskUSD / capital * 100;
+
+  // Fees (open + close round trip for each exit)
+  const openFee  = posValue * feeRate;
+  const closeFee = posValue * feeRate;  // approximate (same size)
+  const totalFee = openFee + closeFee;
+
+  // P&L at each level (before fees)
+  const mult     = isLong ? 1 : -1;
+  const pnlSL    = (sl    - entry) * units * mult;
+  const risk1R   = Math.abs(pnlSL);
+  const tp1Price = entry + mult * 1.5 * riskPerUnit;
+  const tp2Price = entry + mult * 3.0 * riskPerUnit;
+  const tp3Price = entry + mult * 5.0 * riskPerUnit;
+  const pnlTP1   = risk1R * 1.5;
+  const pnlTP2   = risk1R * 3.0;
+  const pnlTP3   = risk1R * 5.0;
+
+  // Net P&L after fees
+  const netSL  = pnlSL  - totalFee;
+  const netTP1 = pnlTP1 - totalFee;
+  const netTP2 = pnlTP2 - totalFee;
+  const netTP3 = pnlTP3 - totalFee;
+
+  // Break-even price
+  const feePerUnit  = totalFee / units;
+  const breakEven   = isLong ? entry + feePerUnit : entry - feePerUnit;
+
+  // SL safety check
+  const slSafe  = isLong ? sl > liqPrice : sl < liqPrice;
+  const slDist  = Math.abs(entry - sl) / entry * 100;
+  const liqDist = Math.abs(entry - liqPrice) / entry * 100;
+  const slToLiqRatio = slDist / liqDist;  // <0.5 means SL is very close to liq
+
+  // Recommended leverage for risk targets
+  const recLevs = [0.5, 1, 1.5, 2, 3, 5].map(rPct => {
+    const targetRiskUSD = capital * rPct / 100;
+    const recPosVal = targetRiskUSD / riskPerUnit * entry;
+    const recLev    = recPosVal / capital;
+    return { rPct, recLev: Math.max(1, recLev) };
+  });
+
+  // Which risk bucket are we in?
+  let riskColor = riskPct < 1 ? 'c-long' : riskPct < 2 ? 'c-fvg' : riskPct < 4 ? 'c-gold' : 'c-red';
+  let riskLabel = riskPct < 1 ? 'Low' : riskPct < 2 ? 'Okay' : riskPct < 4 ? 'High' : 'VERY HIGH';
+
+  /* ── Render results ───────────────────────────── */
+  // Read signal quality from URL params
+  const sigScore   = parseInt(P.get('score') || '0');
+  const sigHtf     = P.get('htf_bias') || '';
+  const sigTouch   = parseInt(P.get('touch_count') || '0');
+  const sigZoneAge = parseInt(P.get('zone_age') || '99');
+  const sigVolStr  = P.get('vol_strong') === '1';
+  const sigBos     = P.get('bos') === '1';
+  const hasSigData = !!P.get('score');
+
+  const checkItems = [
+    {
+      ok: !hasSigData || sigScore >= 8,
+      warn: hasSigData && sigScore < 5,
+      label: hasSigData
+        ? `Signal score: <strong>${sigScore}/10</strong> — ${sigScore >= 8 ? 'High quality' : sigScore >= 5 ? 'Moderate — wait for confirmation' : 'LOW quality — consider skipping'}`
+        : 'No signal score available (manual entry)',
+    },
+    {
+      ok: !hasSigData || ['aligned','strong_aligned'].includes(sigHtf),
+      warn: hasSigData && ['against','strong_against'].includes(sigHtf),
+      label: hasSigData
+        ? `HTF trend: <strong>${
+            sigHtf === 'strong_aligned' ? '⭐ PERFECT — EMA21 + EMA50 both aligned with trade (highest quality)' :
+            sigHtf === 'aligned'        ? '✓ Aligned — trading with the trend' :
+            sigHtf === 'against'        ? '⚠ AGAINST the trend — higher risk' :
+            sigHtf === 'strong_against' ? '🚨 STRONGLY against trend — avoid this trade' :
+            '— Neutral trend'}</strong>`
+        : 'Higher timeframe trend not checked',
+    },
+    {
+      ok: !hasSigData || sigTouch === 0,
+      warn: hasSigData && sigTouch >= 2,
+      label: hasSigData
+        ? `Zone freshness: <strong>${sigTouch === 0 ? '🔵 Fresh — first visit (strongest)' : sigTouch === 1 ? '2nd touch — still valid' : `${sigTouch + 1}th touch — zone weakening, be careful`}</strong>`
+        : 'Zone touch count not available',
+    },
+    {
+      ok: !hasSigData || sigBos,
+      warn: false,
+      label: hasSigData
+        ? `Structure: <strong>${sigBos ? '📐 Break of Structure confirmed — trend supports this trade' : '— No structure break yet (price could reverse back, wait for sweep/confirmation)'}</strong>`
+        : 'Structure break not checked',
+    },
+    {
+      ok: !hasSigData || sigVolStr,
+      warn: false,
+      label: hasSigData
+        ? `Zone strength: <strong>${sigVolStr ? '📊 High-volume zone — large institutions likely have orders here' : '— Normal-volume zone (still valid, just less institutional backing)'}</strong>`
+        : 'Volume data not available',
+    },
+    {
+      ok: !hasSigData || sigZoneAge <= 10,
+      warn: hasSigData && sigZoneAge > 30,
+      label: hasSigData && sigZoneAge < 99
+        ? `Zone age: <strong>${sigZoneAge} candles</strong> — ${
+            sigZoneAge <= 3  ? '🔵 Extremely fresh — formed just now, highest reliability' :
+            sigZoneAge <= 10 ? '🔵 Fresh zone — very recent formation' :
+            sigZoneAge <= 25 ? 'Moderate age — still valid' :
+            '⚠ Older zone — confirmation (sweep or reversal candle) strongly recommended'}`
+        : 'Zone age not available',
+    },
+    {
+      ok: slSafe,
+      warn: !slSafe,
+      label: slSafe
+        ? `SL is <strong>safe</strong> — ${slDist.toFixed(2)}% from entry, liq is ${liqDist.toFixed(2)}% away`
+        : `🚨 SL is BEYOND liquidation price — you will be liquidated first!`,
+    },
+    {
+      ok: riskPct <= 2,
+      warn: riskPct > 4,
+      label: `Risk per trade: <strong>${riskPct.toFixed(2)}% of capital</strong> — ${riskPct <= 1 ? 'Conservative ✓' : riskPct <= 2 ? 'Acceptable ✓' : riskPct <= 4 ? 'High — consider reducing leverage' : '⚠ VERY HIGH — reduce leverage now'}`,
+    },
+    {
+      ok: slToLiqRatio >= 0.5,
+      warn: slToLiqRatio < 0.3,
+      label: `SL buffer from liq: <strong>${(slToLiqRatio * 100).toFixed(0)}%</strong> — ${slToLiqRatio >= 0.5 ? 'Good safety margin ✓' : slToLiqRatio >= 0.3 ? 'Tight margin — be careful' : '⚠ Too close to liquidation, lower leverage'}`,
+    },
+  ];
+
+  const allOk  = checkItems.every(c => !c.warn);
+  const anyWarn = checkItems.some(c => c.warn);
+  const overallCls  = allOk ? 'go' : anyWarn ? (checkItems.filter(c=>c.warn).length >= 2 ? 'skip' : 'wait') : 'wait';
+  const overallText = allOk ? '✅ ALL CHECKS PASSED — Safe to trade' : anyWarn ? (overallCls === 'skip' ? '🚫 MULTIPLE ISSUES — Do not trade this setup' : '⏳ REVIEW WARNINGS before entering') : '—';
+
+  document.getElementById('results-body').innerHTML = `
+
+  <!-- Pre-trade checklist -->
+  <div class="res-section">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <div style="background:${allOk?'rgba(0,217,126,.15)':anyWarn&&overallCls==='skip'?'rgba(255,61,90,.1)':'rgba(245,166,35,.1)'};border:1px solid ${allOk?'rgba(0,217,126,.4)':anyWarn&&overallCls==='skip'?'rgba(255,61,90,.4)':'rgba(245,166,35,.4)'};color:${allOk?'var(--long)':anyWarn&&overallCls==='skip'?'var(--short)':'var(--gold)'};padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;flex:1">
+        ${overallText}
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${checkItems.map(c => `
+        <div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;padding:6px 10px;border-radius:6px;background:${c.warn?'rgba(255,61,90,.06)':c.ok?'rgba(0,217,126,.04)':'var(--surface2)'};border:1px solid ${c.warn?'rgba(255,61,90,.2)':c.ok?'rgba(0,217,126,.15)':'var(--border)'}">
+          <span style="flex-shrink:0;font-size:13px">${c.warn?'⚠':'✓'}</span>
+          <span style="color:${c.warn?'var(--short)':c.ok?'var(--long)':'var(--dim)'}">${c.label}</span>
+        </div>`).join('')}
+    </div>
+  </div>
+
+  <!-- Position info -->
+  <div class="res-section">
+    <div class="res-title">Position Summary</div>
+    <div class="info-grid">
+      <div class="info-box">
+        <div class="ib-val c-fvg">${fmtUSD(posValue)}</div>
+        <div class="ib-lbl">Position Size</div>
+      </div>
+      <div class="info-box">
+        <div class="ib-val">${fmtQty(units)}</div>
+        <div class="ib-lbl">Units / Qty</div>
+      </div>
+      <div class="info-box">
+        <div class="ib-val">${fmtP(entry)}</div>
+        <div class="ib-lbl">Entry Price</div>
+      </div>
+      <div class="info-box">
+        <div class="ib-val">${fmtP(breakEven)}</div>
+        <div class="ib-lbl">Break-even (after fees)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Liquidation -->
+  <div class="res-section">
+    <div class="res-title">⚠️ Liquidation</div>
+    <div class="liq-box ${slToLiqRatio < 0.5 ? 'warn' : 'safe'}">
+      <div class="liq-icon">${slToLiqRatio < 0.5 ? '⚠️' : '✅'}</div>
+      <div class="liq-text">
+        <div class="liq-price">${fmtP(liqPrice)}</div>
+        <div class="liq-sub">
+          ${liqDist.toFixed(2)}% from entry · SL is at ${slDist.toFixed(2)}% from entry
+          (${(slToLiqRatio * 100).toFixed(0)}% of way to liq)
+        </div>
+      </div>
+    </div>
+    ${!slSafe ? `<div style="background:rgba(255,61,90,.12);border:1px solid var(--short-bd);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--short);font-weight:600">
+      🚨 DANGER: Your stop loss is BEYOND the liquidation price!<br>
+      You will get liquidated before your SL triggers. Move your SL closer.
+    </div>` : ''}
+  </div>
+
+  <!-- P&L rows -->
+  <div class="res-section">
+    <div class="res-title">Profit & Loss at Each Level</div>
+    <div class="pnl-row sl-row">
+      <div class="pnl-lbl">❌ Stop Loss</div>
+      <div class="pnl-price">${fmtP(sl)}</div>
+      <div class="pnl-usd">−${fmtUSD(Math.abs(netSL))}</div>
+      <div class="pnl-rr">−${riskPct.toFixed(2)}%</div>
+    </div>
+    <div class="pnl-row tp1-row">
+      <div class="pnl-lbl">✅ TP 1</div>
+      <div class="pnl-price">${fmtP(tp1Price)}</div>
+      <div class="pnl-usd">+${fmtUSD(netTP1)}</div>
+      <div class="pnl-rr">1.5R · +${(netTP1/capital*100).toFixed(2)}%</div>
+    </div>
+    <div class="pnl-row tp2-row">
+      <div class="pnl-lbl">✅ TP 2</div>
+      <div class="pnl-price">${fmtP(tp2Price)}</div>
+      <div class="pnl-usd">+${fmtUSD(netTP2)}</div>
+      <div class="pnl-rr">3.0R · +${(netTP2/capital*100).toFixed(2)}%</div>
+    </div>
+    <div class="pnl-row tp3-row">
+      <div class="pnl-lbl">✅ TP 3</div>
+      <div class="pnl-price">${fmtP(tp3Price)}</div>
+      <div class="pnl-usd">+${fmtUSD(netTP3)}</div>
+      <div class="pnl-rr">5.0R · +${(netTP3/capital*100).toFixed(2)}%</div>
+    </div>
+    <div class="fee-line">Round-trip fees (×2): −${fmtUSD(totalFee)} at ${(feeRate*100).toFixed(3)}% per side</div>
+  </div>
+
+  <!-- Risk analysis -->
+  <div class="res-section">
+    <div class="res-title">Risk Analysis</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span style="font-size:13px">Current risk per trade:</span>
+      <span style="font-size:18px;font-weight:800;font-family:var(--mono)" class="${riskColor}">
+        ${riskPct.toFixed(2)}% &nbsp; <span style="font-size:12px">${riskLabel}</span>
+      </span>
+    </div>
+    <div class="risk-gauge-wrap">
+      <div class="risk-gauge-bar">
+        <div class="risk-gauge-pin" style="left:${Math.min(99,riskPct/10*100).toFixed(1)}%"></div>
+      </div>
+      <div class="risk-gauge-labels">
+        <span>0%</span><span>2%</span><span>5%</span><span>10%</span>
+      </div>
+    </div>
+
+    <div style="margin-top:14px">
+      <div class="res-title" style="margin-bottom:8px">Recommended leverage for this trade</div>
+      <table class="rec-table">
+        <thead><tr>
+          <th>Risk %</th><th>Leverage</th><th>Loss if SL hits</th><th>Profit at TP2</th><th></th>
+        </tr></thead>
+        <tbody>
+        ${recLevs.map(r => {
+          const pv   = capital * r.recLev;
+          const u    = pv / entry;
+          const loss = Math.abs(entry - sl) * u + totalFee;
+          const prof = Math.abs(entry - sl) * u * 3 - totalFee;
+          const cur  = Math.abs(r.recLev - leverage) < 0.5;
+          return `<tr class="${cur?'current-row':''}">
+            <td>${r.rPct}%</td>
+            <td>${r.recLev < 1.05 ? '1×' : r.recLev.toFixed(1)+'×'}</td>
+            <td style="color:var(--short)">−${fmtUSD(loss)}</td>
+            <td style="color:var(--long)">+${fmtUSD(prof)}</td>
+            <td class="rec-check">${cur ? '← you' : r.rPct <= 2 ? '✅' : r.rPct <= 3 ? '⚠️' : '🔴'}</td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tip: why SL got hit -->
+  <div class="res-section">
+    <div class="tip-box">
+      <div class="tip-title">💡 Why did my SL get hit but price then went to TP?</div>
+      <p><strong>The real reason:</strong> Your SL was inside the zone. The zone is <em>support/resistance</em> — price often wicks through the zone edge before bouncing. If your SL is inside the zone, that wick hits your SL.</p>
+      <p style="margin-top:6px"><span class="tip-bad">❌ Wrong:</span> SL based on a % from entry (e.g., −1%)</p>
+      <p><span class="tip-good">✅ Correct:</span> SL placed <strong>beyond the zone bottom</strong> (for LONG) — this is the invalidation level. If price trades past the zone, the setup is broken. Until then, let it breathe.</p>
+      <p style="margin-top:6px"><strong>With ${leverage}× leverage</strong>, a ${slDist.toFixed(2)}% move against you = ${riskPct.toFixed(2)}% loss on capital. Use the recommended leverage table above to keep losses under 2%.</p>
+      <p style="margin-top:6px; color: var(--gold)"><strong>Golden rule:</strong> <em>Position size controls risk. SL location controls strategy.</em> Never move your SL just to make the math work — resize the position instead.</p>
+    </div>
+  </div>
+
+  <!-- BitMart Trade Ticket -->
+  ${buildBitmartSection(ticker, isLong, entry, sl, tp1Price, tp2Price, tp3Price, units, leverage, riskPct, posValue)}
+
+  `;
+  // Async: fetch funding rate for crypto
+  if (bmSym) fetchAndRenderFundingRate(bmSym, isLong, posValue);
+}
+
+/* ── Helpers ─────────────────────────────────────────── */
+function fmtP(p) {
+  if (p == null || isNaN(p)) return '—';
+  if (p >= 10000) return p.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if (p >= 100)   return p.toLocaleString('en-US',{minimumFractionDigits:3,maximumFractionDigits:3});
+  if (p >= 1)     return p.toFixed(4);
+  return p.toFixed(6);
+}
+function fmtUSD(n) {
+  if (n == null || isNaN(n)) return '0.00';
+  return Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function fmtQty(n) {
+  if (n == null || isNaN(n)) return '—';
+  if (n >= 1000) return n.toLocaleString('en-US',{maximumFractionDigits:2});
+  if (n >= 1)    return n.toFixed(4);
+  return n.toFixed(6);
+}
+function decimalPlaces(p) {
+  if (p >= 10000) return 2;
+  if (p >= 100)   return 3;
+  if (p >= 1)     return 4;
+  return 6;
+}
+
+/* ── Toast ───────────────────────────────────────────── */
+function showToast(msg) {
+  const t = document.getElementById('calc-toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+/* ── BitMart section builder ─────────────────────────── */
+let _bmData = {};
+
+function buildBitmartSection(ticker, isLong, entry, sl, tp1, tp2, tp3, units, leverage, riskPct, posValue) {
+  const bmSym = BITMART_MAP[ticker];
+  const isCrypto = ticker.includes('-USD');
+
+  if (!bmSym) {
+    return `
+      <div class="res-section" style="border-bottom:none;padding-bottom:0">
+        <div class="bm-na">
+          <div style="font-size:24px;margin-bottom:8px">❌</div>
+          <strong style="color:var(--text);font-size:13px">Not available on BitMart Futures</strong><br>
+          <strong>${ticker}</strong> ${isCrypto ? 'is not listed' : 'is not a crypto and cannot be traded'} on BitMart Futures.<br>
+          <span style="font-size:11px;margin-top:4px;display:block">BitMart Futures supports: BTC, ETH, SOL, BNB, XRP, ADA, AVAX, DOGE, DOT, LINK</span>
+        </div>
+      </div>`;
+  }
+
+  const baseAsset = bmSym.replace('_USDT', '');
+  const qtyStr   = fmtQty(units);
+  const entryStr = entry.toFixed(decimalPlaces(entry));
+  const slStr    = sl.toFixed(decimalPlaces(sl));
+  const tp1Str   = tp1.toFixed(decimalPlaces(tp1));
+  const tp2Str   = tp2.toFixed(decimalPlaces(tp2));
+  const tp3Str   = tp3.toFixed(decimalPlaces(tp3));
+  const side     = isLong ? 'BUY LONG' : 'SELL SHORT';
+  const sideColor = isLong ? 'var(--long)' : 'var(--short)';
+
+  // Store values for copy buttons
+  _bmData = {
+    sym:   bmSym,
+    qty:   qtyStr,
+    entry: entryStr,
+    sl:    slStr,
+    tp1:   tp1Str,
+  };
+  _bmData.all = [
+    'BitMart Futures Trade Setup',
+    '─────────────────────────────',
+    `Symbol:     ${bmSym}`,
+    `Side:       ${side}`,
+    `Leverage:   ${leverage}×  (Isolated margin)`,
+    `Quantity:   ${qtyStr} ${baseAsset}`,
+    `Entry:      ${entryStr}`,
+    `Stop Loss:  ${slStr}   ← set as SL order after entry`,
+    `TP 1 (1.5R): ${tp1Str}   ← take partial profit here`,
+    `TP 2 (3.0R): ${tp2Str}`,
+    `TP 3 (5.0R): ${tp3Str}`,
+    `Risk:       ${riskPct.toFixed(2)}% of capital`,
+  ].join('\n');
+
+  return `
+  <div class="res-section" style="border-bottom:none;padding-bottom:0">
+    <div class="bm-panel">
+      <div class="bm-hd">📱 Enter This Trade on BitMart Futures</div>
+
+      <!-- Trade ticket -->
+      <div class="bm-ticket">
+        <div class="bm-row">
+          <span class="bm-lbl">Symbol</span>
+          <span style="display:flex;align-items:center">
+            <span class="bm-val" style="color:#00bfff;font-size:16px">${bmSym}</span>
+            <button class="copy-btn" onclick="copyBmField('sym')">Copy</button>
+          </span>
+        </div>
+        <div class="bm-row">
+          <span class="bm-lbl">Side</span>
+          <span class="bm-val" style="color:${sideColor};font-size:15px">${side}</span>
+        </div>
+        <div class="bm-row">
+          <span class="bm-lbl">Leverage</span>
+          <span class="bm-val">${leverage}× Isolated</span>
+        </div>
+        <div class="bm-row">
+          <span class="bm-lbl">Quantity</span>
+          <span style="display:flex;align-items:center">
+            <span class="bm-val">${qtyStr} <span style="color:var(--dim);font-size:11px">${baseAsset}</span></span>
+            <button class="copy-btn" onclick="copyBmField('qty')">Copy qty</button>
+          </span>
+        </div>
+        <div class="bm-row">
+          <span class="bm-lbl">Entry Price</span>
+          <span style="display:flex;align-items:center">
+            <span class="bm-val">${entryStr}</span>
+            <button class="copy-btn" onclick="copyBmField('entry')">Copy</button>
+          </span>
+        </div>
+        <div class="bm-row">
+          <span class="bm-lbl">Stop Loss</span>
+          <span style="display:flex;align-items:center">
+            <span class="bm-val" style="color:var(--short)">${slStr}</span>
+            <button class="copy-btn" onclick="copyBmField('sl')">Copy</button>
+          </span>
+        </div>
+        <div class="bm-row">
+          <span class="bm-lbl">TP 1 (1.5R)</span>
+          <span style="display:flex;align-items:center">
+            <span class="bm-val" style="color:var(--long)">${tp1Str}</span>
+            <button class="copy-btn" onclick="copyBmField('tp1')">Copy</button>
+          </span>
+        </div>
+        <div class="bm-row">
+          <span class="bm-lbl">TP 2 (3.0R)</span>
+          <span class="bm-val" style="color:var(--long)">${tp2Str}</span>
+        </div>
+        <div class="bm-row">
+          <span class="bm-lbl">TP 3 (5.0R)</span>
+          <span class="bm-val" style="color:var(--long)">${tp3Str}</span>
+        </div>
+      </div>
+
+      <!-- Step-by-step guide -->
+      <div class="bm-steps">
+        <strong style="color:var(--text);font-size:12px;display:block;margin-bottom:6px">📋 Step-by-step (BitMart app):</strong>
+        <ol>
+          <li>Open <strong>BitMart app</strong> → tap <strong>Futures</strong> tab at the bottom</li>
+          <li>Search for <strong class="bm-sv">${bmSym}</strong> → open the trading screen</li>
+          <li>Tap the leverage number → set to <strong class="bm-sv">${leverage}×</strong> → select <strong>Isolated</strong> margin mode</li>
+          <li>Choose order type: <strong>Limit</strong> (enter exact price) or <strong>Market</strong> (fills instantly at current price)</li>
+          <li>Tap the <strong style="color:${sideColor}">${isLong ? 'BUY / Open Long' : 'SELL / Open Short'}</strong> tab</li>
+          <li>Enter quantity: <strong class="bm-sv">${qtyStr} ${baseAsset}</strong> <span style="color:var(--dim)">(or switch to USDT mode and enter your position value)</span></li>
+          <li>${isLong ? `For Limit order: set price to <strong class="bm-sv">${entryStr}</strong>` : `For Limit order: set price to <strong class="bm-sv">${entryStr}</strong>`} → tap <strong>${isLong ? 'Buy Long' : 'Sell Short'}</strong> to confirm</li>
+          <li>After order <strong>fills</strong> → go to <strong>Positions</strong> tab at the bottom</li>
+          <li>Tap your <strong>${bmSym}</strong> position → tap <strong>TP/SL</strong> button</li>
+          <li>Set <strong>Stop Loss: <span class="bm-sv" style="color:var(--short)">${slStr}</span></strong> — this closes your trade if price goes wrong way</li>
+          <li>Set <strong>Take Profit: <span class="bm-sv" style="color:var(--long)">${tp1Str}</span></strong> — close at least half here, let the rest run to TP2</li>
+          <li>Tap <strong>Confirm</strong> — your TP/SL is now active ✅</li>
+        </ol>
+      </div>
+
+      <!-- Funding rate (filled async) -->
+      <div id="bm-funding-area" style="margin-top:10px">
+        <div style="font-size:11px;color:var(--dim);display:flex;align-items:center;gap:6px">
+          <div style="width:10px;height:10px;border:2px solid var(--fvg);border-top-color:transparent;border-radius:50%;animation:rot .8s linear infinite;flex-shrink:0"></div>
+          Loading funding rate…
+        </div>
+      </div>
+
+      <!-- Copy all -->
+      <button class="copy-all-btn" onclick="copyAllBm()">📋 Copy Complete Trade Setup to Clipboard</button>
+    </div>
+  </div>`;
+}
+
+/* ── Copy helpers ────────────────────────────────────── */
+function copyBmField(field) {
+  const val = _bmData[field];
+  if (!val) return;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(String(val)).then(() => showToast('✓ Copied: ' + val));
+  } else {
+    const el = document.createElement('textarea');
+    el.value = String(val);
+    document.body.appendChild(el); el.select();
+    document.execCommand('copy'); document.body.removeChild(el);
+    showToast('✓ Copied: ' + val);
+  }
+}
+
+function copyAllBm() {
+  const val = _bmData.all;
+  if (!val) return;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(val).then(() => showToast('✓ Full trade setup copied!'));
+  } else {
+    const el = document.createElement('textarea');
+    el.value = val;
+    document.body.appendChild(el); el.select();
+    document.execCommand('copy'); document.body.removeChild(el);
+    showToast('✓ Full trade setup copied!');
+  }
+}
+
+/* ── Funding rate (Binance public API, no key needed) ── */
+async function fetchAndRenderFundingRate(bmSym, isLong, posValue) {
+  const el = document.getElementById('bm-funding-area');
+  if (!el) return;
+
+  const binanceSym = bmSym.replace('_', ''); // BTC_USDT → BTCUSDT
+  try {
+    const res  = await fetch(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${binanceSym}`);
+    const data = await res.json();
+
+    const rate    = parseFloat(data.lastFundingRate);  // e.g. 0.0001 = 0.01%
+    const ratePct = rate * 100;
+    const nextMs  = data.nextFundingTime - Date.now();
+    const hLeft   = Math.max(0, Math.floor(nextMs / 3600000));
+    const mLeft   = Math.max(0, Math.floor((nextMs % 3600000) / 60000));
+    const timeStr = `${hLeft}h ${mLeft}m`;
+
+    const cost      = Math.abs(posValue * rate);
+    const isPaying  = (isLong && rate > 0) || (!isLong && rate < 0);
+
+    let html, cls;
+    if (Math.abs(rate) < 0.00005) {
+      cls  = 'bm-fund-neu';
+      html = `<strong>Funding Rate: ~0%</strong> — no cost this period<br>
+              <span style="color:var(--dim)">⏰ Next funding in ${timeStr} · charged every 8 hours</span>`;
+    } else if (isPaying) {
+      cls  = 'bm-fund-pay';
+      html = `<strong style="color:var(--short)">Funding Rate: ${ratePct >= 0 ? '+' : ''}${ratePct.toFixed(4)}%</strong>
+              &nbsp;⚠️ You will <strong>PAY ≈ $${fmtUSD(cost)}</strong> at next funding<br>
+              <span style="color:var(--dim)">⏰ Next funding in <strong>${timeStr}</strong> · every 8 hours</span><br>
+              <span style="font-size:11px;color:var(--dim);display:block;margin-top:4px">
+                💡 If your TP is within ${timeStr}, exiting before funding saves you $${fmtUSD(cost)} in fees.
+              </span>`;
+    } else {
+      cls  = 'bm-fund-recv';
+      html = `<strong style="color:var(--long)">Funding Rate: ${ratePct >= 0 ? '+' : ''}${ratePct.toFixed(4)}%</strong>
+              &nbsp;✅ You will <strong>RECEIVE ≈ $${fmtUSD(cost)}</strong> at next funding<br>
+              <span style="color:var(--dim)">⏰ Next funding in <strong>${timeStr}</strong> · every 8 hours</span><br>
+              <span style="font-size:11px;color:var(--dim);display:block;margin-top:4px">
+                Holding longer = extra funding payments received every 8h.
+              </span>`;
+    }
+
+    el.innerHTML = `<div class="bm-fund-box ${cls}">💸 <strong>BitMart Funding (8h charge):</strong><br>${html}</div>`;
+  } catch(e) {
+    el.innerHTML = '<div style="font-size:11px;color:var(--dim);margin-top:8px">⚠ Funding rate unavailable</div>';
+  }
+}
+</script>
+<div id="calc-toast"></div>
+</body>
+</html>

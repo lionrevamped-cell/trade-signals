@@ -1,0 +1,33 @@
+# Local trading state — never commit (keeps her data hers, your data yours)
+outcomes.json
+learned_weights.json
+learn_history.json
+.last_update_sha
+.last_reqs_hash
+.learn_paused
+
+# Generated reports / archives
+agent_reports/
+backtest_history/
+
+# Python venv + caches
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# Claude Code local settings
+.claude/
+
+# Local zip builds
+*.zip

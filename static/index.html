@@ -1,0 +1,2467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FVG & OB Signal Scanner</title>
+<style>
+/* ─────────────────────────────────────────────────────────────
+   RESET & VARIABLES
+───────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:        #060c18;
+  --surface:   #0c1628;
+  --surface2:  #122038;
+  --surface3:  #192d4e;
+  --border:    #1d3660;
+  --text:      #c8d8f0;
+  --dim:       #4a6590;
+  --long:      #00d97e;
+  --long-bg:   rgba(0,217,126,0.1);
+  --long-bd:   rgba(0,217,126,0.3);
+  --short:     #ff3d5a;
+  --short-bg:  rgba(255,61,90,0.1);
+  --short-bd:  rgba(255,61,90,0.3);
+  --gold:      #f5a623;
+  --gold-bg:   rgba(245,166,35,0.1);
+  --gold-bd:   rgba(245,166,35,0.3);
+  --fvg:       #38bdf8;
+  --ob:        #a78bfa;
+  --r:         10px;
+  --mono:      'SF Mono','Fira Code','Consolas',monospace;
+}
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   LAYOUT
+───────────────────────────────────────────────────────────── */
+.wrap { max-width: 1520px; margin: 0 auto; padding: 0 20px 60px; }
+
+/* ─────────────────────────────────────────────────────────────
+   HEADER
+───────────────────────────────────────────────────────────── */
+header {
+  position: sticky; top: 0; z-index: 200;
+  background: rgba(6,12,24,0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 0;
+}
+.header-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+  max-width: 1520px; margin: 0 auto; padding: 0 20px;
+}
+.logo {
+  font-size: 20px; font-weight: 800; letter-spacing: -0.5px;
+  display: flex; align-items: center; gap: 8px;
+}
+.logo-accent { color: var(--fvg); }
+.scan-pill {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface2); border: 1px solid var(--border);
+  padding: 3px 10px; border-radius: 20px; font-size: 12px; color: var(--dim);
+}
+.dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--dim); flex-shrink: 0;
+}
+.dot.active { background: var(--gold); animation: blink 1s infinite; }
+.dot.live   { background: var(--long); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.header-right {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+}
+.hdr-meta { font-size: 11px; color: var(--dim); white-space: nowrap; }
+.hdr-meta strong { color: var(--text); }
+#prices-age { font-size: 11px; color: var(--dim); }
+
+.btn {
+  padding: 6px 16px; border-radius: 6px; cursor: pointer;
+  font-size: 13px; font-weight: 500; border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text);
+  transition: all .15s; white-space: nowrap;
+}
+.btn:hover  { border-color: var(--fvg); color: var(--fvg); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn-primary { background: var(--fvg); color: #060c18; border-color: var(--fvg); font-weight: 700; }
+.btn-primary:hover { filter: brightness(1.1); color: #060c18; }
+
+/* ─────────────────────────────────────────────────────────────
+   STATS BAR
+───────────────────────────────────────────────────────────── */
+.stats-bar {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  padding: 14px 0 10px;
+}
+.stat {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 10px 18px;
+  display: flex; flex-direction: column; align-items: center; min-width: 88px;
+}
+.sv { font-size: 24px; font-weight: 800; font-family: var(--mono); line-height: 1; }
+.sl { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .8px; margin-top: 3px; }
+.sv.c-total  { color: var(--fvg); }
+.sv.c-long   { color: var(--long); }
+.sv.c-short  { color: var(--short); }
+.sv.c-strong { color: var(--gold); }
+.sv.c-med    { color: var(--ob); }
+
+/* ─────────────────────────────────────────────────────────────
+   FILTERS
+───────────────────────────────────────────────────────────── */
+.filters {
+  display: flex; flex-wrap: wrap; gap: 6px 20px; align-items: center;
+  padding: 10px 0 12px; border-bottom: 1px solid var(--border);
+}
+.fg { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.fg-lbl {
+  font-size: 10px; color: var(--dim); text-transform: uppercase;
+  letter-spacing: .8px; white-space: nowrap; margin-right: 2px;
+}
+.fbtn {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--dim); padding: 3px 10px; border-radius: 20px;
+  cursor: pointer; font-size: 12px; transition: all .15s; white-space: nowrap;
+}
+.fbtn:hover { border-color: var(--text); color: var(--text); }
+.fbtn.on { background: var(--surface2); border-color: var(--fvg); color: var(--fvg); }
+.fbtn.on.long  { border-color: var(--long);  color: var(--long); }
+.fbtn.on.short { border-color: var(--short); color: var(--short); }
+.fbtn.on.gold  { border-color: var(--gold);  color: var(--gold); }
+
+/* ─────────────────────────────────────────────────────────────
+   SECTION HEADERS
+───────────────────────────────────────────────────────────── */
+.sec-hdr {
+  display: flex; align-items: center; gap: 10px;
+  padding: 18px 0 10px;
+}
+.sec-hdr h2 { font-size: 15px; font-weight: 700; }
+.chip {
+  background: var(--surface2); border: 1px solid var(--border);
+  padding: 2px 9px; border-radius: 20px; font-size: 12px; color: var(--dim);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   SIGNAL CARDS
+───────────────────────────────────────────────────────────── */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 14px; margin-bottom: 6px;
+}
+.card {
+  background: var(--surface); border-radius: 12px;
+  border: 1px solid var(--border); padding: 16px;
+  position: relative; overflow: hidden; transition: transform .15s;
+}
+.card:hover { transform: translateY(-2px); }
+.card.long  { border-left: 3px solid var(--long); }
+.card.short { border-left: 3px solid var(--short); }
+
+/* In-zone glow */
+.card.in-zone {
+  box-shadow: 0 0 0 1px var(--gold-bd), 0 0 18px var(--gold-bg);
+  animation: cardGlow 2s ease-in-out infinite;
+}
+@keyframes cardGlow {
+  0%,100% { box-shadow: 0 0 0 1px var(--gold-bd), 0 0 14px var(--gold-bg); }
+  50%      { box-shadow: 0 0 0 1px var(--gold-bd), 0 0 28px rgba(245,166,35,.18); }
+}
+
+/* Card header row */
+.card-head {
+  display: flex; justify-content: space-between;
+  align-items: flex-start; margin-bottom: 10px;
+}
+.c-name { font-size: 17px; font-weight: 800; }
+.c-sub  { font-size: 11px; color: var(--dim); margin-top: 1px; }
+
+.card-tags { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+
+/* Direction badge */
+.dir-badge {
+  padding: 4px 12px; border-radius: 5px; font-size: 12px; font-weight: 800;
+  letter-spacing: .5px;
+}
+.dir-badge.long  { background: var(--long-bg);  color: var(--long);  border: 1px solid var(--long-bd); }
+.dir-badge.short { background: var(--short-bg); color: var(--short); border: 1px solid var(--short-bd); }
+
+/* Reason badge */
+.reason-badge {
+  padding: 2px 9px; border-radius: 4px; font-size: 11px; font-weight: 700;
+}
+.rb-fvgob { background: var(--gold-bg);           color: var(--gold); border: 1px solid var(--gold-bd); }
+.rb-fvg   { background: rgba(56,189,248,.1);      color: var(--fvg);  border: 1px solid rgba(56,189,248,.25); }
+.rb-ob    { background: rgba(167,139,250,.1);     color: var(--ob);   border: 1px solid rgba(167,139,250,.25); }
+
+/* TF + meta row */
+.card-meta { display: flex; align-items: center; gap: 7px; margin-bottom: 12px; }
+.tf-badge {
+  background: var(--surface3); border: 1px solid var(--border);
+  padding: 2px 8px; border-radius: 4px; font-size: 11px; color: var(--dim);
+}
+.star-badge { font-size: 12px; color: var(--gold); }
+.in-zone-badge {
+  background: var(--gold-bg); border: 1px solid var(--gold-bd);
+  color: var(--gold); padding: 2px 8px; border-radius: 4px;
+  font-size: 11px; font-weight: 800; letter-spacing: .3px;
+  animation: blink 1.2s ease-in-out infinite;
+}
+
+/* Zone bar */
+.zone-bar-wrap { margin: 0 0 12px; }
+.zone-labels {
+  display: flex; justify-content: space-between;
+  font-size: 10px; color: var(--dim); font-family: var(--mono); margin-bottom: 4px;
+}
+.zone-lbl-mid { color: var(--dim); font-size: 10px; }
+.zone-bar {
+  position: relative; width: 100%; height: 10px;
+  background: var(--surface2); border-radius: 5px; overflow: visible;
+}
+.zone-fill {
+  position: absolute; height: 100%; border-radius: 4px; top: 0;
+  transition: left .5s, width .5s;
+}
+.price-pin {
+  position: absolute; top: -5px;
+  width: 3px; height: 20px; border-radius: 2px;
+  background: #fff; transform: translateX(-50%);
+  box-shadow: 0 0 8px rgba(255,255,255,.6);
+  transition: left .5s;
+}
+.zone-price-row {
+  display: flex; justify-content: space-between;
+  font-size: 11px; color: var(--dim); margin-top: 4px;
+}
+.zone-price-row .cur-price { color: var(--text); font-family: var(--mono); font-weight: 600; }
+.zone-price-row .dist-num  { font-family: var(--mono); font-weight: 600; }
+
+/* Trade levels */
+.levels {
+  border-top: 1px solid var(--border); padding-top: 12px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.lv-row {
+  display: grid; grid-template-columns: 62px 1fr auto;
+  align-items: center; gap: 8px; font-size: 12px;
+}
+.lv-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--dim); }
+.lv-price { font-family: var(--mono); font-weight: 700; }
+.lv-row.entry .lv-price { color: var(--text); }
+.lv-row.sl    .lv-price { color: var(--short); }
+.lv-row.tp    .lv-price { color: var(--long); }
+.lv-tag {
+  font-size: 10px; padding: 1px 7px; border-radius: 3px; font-weight: 600;
+  white-space: nowrap;
+}
+.lv-row.entry .lv-tag { background: var(--surface3); color: var(--dim); }
+.lv-row.sl    .lv-tag { background: var(--short-bg); color: var(--short); border: 1px solid var(--short-bd); }
+.lv-row.tp    .lv-tag { background: var(--long-bg);  color: var(--long);  border: 1px solid var(--long-bd); }
+.lv-div {
+  border-top: 1px dashed var(--border); margin: 2px 0;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   TABLE
+───────────────────────────────────────────────────────────── */
+.table-wrap { overflow-x: auto; border-radius: var(--r); }
+table { width: 100%; border-collapse: collapse; background: var(--surface); }
+thead tr { background: var(--surface2); }
+th {
+  padding: 10px 13px; text-align: left;
+  font-size: 10px; text-transform: uppercase; letter-spacing: .7px;
+  color: var(--dim); white-space: nowrap; cursor: pointer; user-select: none;
+  border-bottom: 1px solid var(--border);
+}
+th:hover { color: var(--text); }
+th.sorted { color: var(--fvg); }
+th.sorted::after { content: ' ↕'; }
+td {
+  padding: 9px 13px; border-bottom: 1px solid rgba(29,54,96,.4);
+  font-size: 12px; white-space: nowrap; vertical-align: middle;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td      { background: rgba(18,32,56,.6); }
+tr.strong-row td { background: rgba(245,166,35,.03); }
+tr.in-zone-row td { background: rgba(245,166,35,.06); }
+tr.in-zone-row td:first-child { border-left: 3px solid var(--gold); }
+
+.ta-asset .tn   { font-weight: 700; font-size: 13px; }
+.ta-asset .tick { font-size: 10px; color: var(--dim); }
+.ta-dir { font-weight: 800; font-size: 12px; }
+.ta-dir.long  { color: var(--long); }
+.ta-dir.short { color: var(--short); }
+.ta-mono { font-family: var(--mono); font-size: 12px; }
+.ta-sl   { font-family: var(--mono); font-size: 12px; color: var(--short); font-weight: 700; }
+.ta-tp   { font-family: var(--mono); font-size: 12px; color: var(--long);  font-weight: 700; }
+
+.dist-ok   { color: var(--long);  font-weight: 700; font-family: var(--mono); }
+.dist-warn { color: var(--gold);  font-weight: 700; font-family: var(--mono); }
+.dist-far  { color: var(--dim);   font-family: var(--mono); }
+
+/* ─────────────────────────────────────────────────────────────
+   EMPTY / LOADING
+───────────────────────────────────────────────────────────── */
+.loading {
+  text-align: center; padding: 70px 20px; color: var(--dim);
+}
+.spin {
+  display: inline-block; width: 36px; height: 36px;
+  border: 3px solid var(--border); border-top-color: var(--fvg);
+  border-radius: 50%; animation: rot .8s linear infinite;
+  margin-bottom: 16px;
+}
+@keyframes rot { to { transform: rotate(360deg); } }
+.empty { text-align: center; padding: 40px; color: var(--dim); font-size: 14px; }
+
+/* ─────────────────────────────────────────────────────────────
+   SCORE + ACTION BADGES
+───────────────────────────────────────────────────────────── */
+.score-badge {
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 8px;
+  font-size: 17px; font-weight: 900; font-family: var(--mono);
+  flex-shrink: 0;
+}
+.score-go   { background: rgba(0,217,126,.15); color: var(--long);  border: 1px solid rgba(0,217,126,.4); }
+.score-wait { background: rgba(245,166,35,.12); color: var(--gold); border: 1px solid rgba(245,166,35,.35); }
+.score-skip { background: rgba(255,61,90,.1);  color: var(--short); border: 1px solid rgba(255,61,90,.3); }
+
+.action-banner {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px; border-radius: 7px; margin-bottom: 12px;
+  font-size: 12px; font-weight: 700; letter-spacing: .3px;
+}
+.action-go   { background: rgba(0,217,126,.08);  border: 1px solid rgba(0,217,126,.3);  color: var(--long); }
+.action-wait { background: rgba(245,166,35,.08); border: 1px solid rgba(245,166,35,.3); color: var(--gold); }
+.action-skip { background: rgba(255,61,90,.08);  border: 1px solid rgba(255,61,90,.25); color: var(--short); }
+
+.htf-chip {
+  padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  letter-spacing: .3px;
+}
+.htf-aligned { background: rgba(0,217,126,.1);  color: var(--long);  border: 1px solid rgba(0,217,126,.3); }
+.htf-against { background: rgba(255,61,90,.1);  color: var(--short); border: 1px solid rgba(255,61,90,.3); }
+.htf-neutral { background: var(--surface3);     color: var(--dim);   border: 1px solid var(--border); }
+
+.fresh-chip {
+  padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
+}
+.fresh-0 { background: rgba(56,189,248,.1); color: var(--fvg); border: 1px solid rgba(56,189,248,.3); }
+.fresh-1 { background: var(--surface3);    color: var(--dim); border: 1px solid var(--border); }
+.fresh-2 { background: rgba(255,61,90,.08); color: var(--short); border: 1px solid rgba(255,61,90,.25); }
+
+/* ─────────────────────────────────────────────────────────────
+   SESSION CHIPS
+───────────────────────────────────────────────────────────── */
+.session-bar {
+  display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 0 2px;
+}
+.sess-chip {
+  padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;
+  border: 1px solid var(--border); color: var(--dim); background: var(--surface2);
+  transition: all .3s;
+}
+.sess-chip.active { color: #fff; border-color: transparent; }
+.sess-asian  { background: rgba(167,139,250,.2); color: var(--ob); border-color: rgba(167,139,250,.4) !important; }
+.sess-london { background: rgba(56,189,248,.15); color: var(--fvg); border-color: rgba(56,189,248,.35) !important; }
+.sess-ny     { background: rgba(0,217,126,.12);  color: var(--long); border-color: rgba(0,217,126,.35) !important; }
+.sess-nse    { background: rgba(245,166,35,.12); color: var(--gold); border-color: rgba(245,166,35,.35) !important; }
+.sess-best   { animation: sessGlow 2s ease-in-out infinite; }
+@keyframes sessGlow { 0%,100%{opacity:1} 50%{opacity:.65} }
+.sess-clock  { font-size: 11px; color: var(--dim); font-family: var(--mono); margin-left: 4px; }
+
+/* ─────────────────────────────────────────────────────────────
+   ALERT PANEL
+───────────────────────────────────────────────────────────── */
+.alert-bell-btn {
+  position: relative; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 12px; cursor: pointer; color: var(--text);
+  font-size: 16px; line-height: 1; transition: all .15s;
+}
+.alert-bell-btn:hover { border-color: var(--gold); }
+.alert-badge {
+  position: absolute; top: -5px; right: -5px;
+  background: var(--short); color: #fff;
+  width: 18px; height: 18px; border-radius: 50%;
+  font-size: 10px; font-weight: 800; display: flex;
+  align-items: center; justify-content: center;
+  animation: blink 1s infinite;
+}
+.alert-panel {
+  position: fixed; right: 0; top: 0; bottom: 0; width: 340px;
+  background: var(--surface); border-left: 1px solid var(--border);
+  z-index: 300; transform: translateX(100%); transition: transform .3s;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.alert-panel.open { transform: translateX(0); }
+.alert-panel-head {
+  padding: 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--surface2);
+}
+.alert-panel-head h3 { font-size: 15px; font-weight: 800; }
+.alert-close-btn { background:none;border:none;color:var(--dim);font-size:20px;cursor:pointer;line-height:1; }
+.alert-close-btn:hover { color:var(--text); }
+.alert-settings {
+  padding: 14px; border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.as-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
+.as-row label { color: var(--dim); }
+.as-toggle {
+  position:relative; width:36px; height:20px; background:var(--border); border-radius:20px;
+  cursor:pointer; transition:background .2s; border:none;
+}
+.as-toggle.on { background:var(--fvg); }
+.as-toggle::after {
+  content:''; position:absolute; width:14px; height:14px; border-radius:50%; background:#fff;
+  top:3px; left:3px; transition:left .2s;
+}
+.as-toggle.on::after { left:19px; }
+.as-score-row { display:flex; align-items:center; gap:8px; font-size:12px; }
+.as-score-row label { color:var(--dim); white-space:nowrap; }
+.as-score-row input[type=range] { flex:1; accent-color: var(--fvg); }
+.as-score-row span { color:var(--text); font-weight:700; font-family:var(--mono); min-width:18px; }
+.alert-log { flex:1; overflow-y:auto; }
+.alert-item {
+  padding: 12px 14px; border-bottom: 1px solid rgba(29,54,96,.4);
+  display: flex; flex-direction: column; gap: 3px;
+}
+.alert-item:hover { background: var(--surface2); }
+.ai-title { font-size: 13px; font-weight: 700; }
+.ai-body  { font-size: 11px; color: var(--dim); }
+.ai-time  { font-size: 10px; color: var(--dim); }
+.ai-sweep { color: var(--short); }
+.ai-zone  { color: var(--gold); }
+.no-alerts { text-align:center; padding:40px 20px; color:var(--dim); font-size:13px; }
+
+/* ─────────────────────────────────────────────────────────────
+   SWEEP + CONFIRMATION BADGES
+───────────────────────────────────────────────────────────── */
+.sweep-badge {
+  padding: 3px 9px; border-radius: 4px; font-size: 11px; font-weight: 800;
+  background: rgba(255,61,90,.12); color: var(--short); border: 1px solid var(--short-bd);
+  animation: blink .8s ease-in-out infinite; letter-spacing: .3px;
+}
+.confirm-badge {
+  padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  background: rgba(56,189,248,.1); color: var(--fvg); border: 1px solid rgba(56,189,248,.3);
+}
+.conflict-badge {
+  padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  background: rgba(245,166,35,.1); color: var(--gold); border: 1px solid var(--gold-bd);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   BEGINNER GUIDE
+───────────────────────────────────────────────────────────── */
+.guide-toggle {
+  width:100%; text-align:left; background:var(--surface2);
+  border:1px solid var(--border); border-radius:7px; padding:8px 12px;
+  cursor:pointer; font-size:12px; color:var(--dim); margin-top:10px;
+  transition:all .15s;
+}
+.guide-toggle:hover { border-color:var(--fvg); color:var(--fvg); }
+.guide-box {
+  display:none; background:var(--surface2); border:1px solid var(--border);
+  border-radius:7px; padding:12px; font-size:12px; line-height:1.7;
+  color:var(--dim); margin-top:4px;
+}
+.guide-box.open { display:block; }
+.guide-box strong { color:var(--text); }
+.guide-box .gb-action {
+  margin-top:10px; padding:8px 10px;
+  background:rgba(0,217,126,.06); border:1px solid rgba(0,217,126,.2);
+  border-radius:6px; color:var(--long); font-weight:600;
+}
+.guide-box .gb-warn {
+  margin-top:6px; padding:8px 10px;
+  background:rgba(255,61,90,.06); border:1px solid rgba(255,61,90,.2);
+  border-radius:6px; color:var(--short);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   PIN BUTTON
+───────────────────────────────────────────────────────────── */
+.pin-btn {
+  background: transparent; border: none; cursor: pointer;
+  font-size: 15px; padding: 0 4px; opacity: .3;
+  transition: opacity .15s, transform .15s; line-height: 1;
+}
+.pin-btn:hover  { opacity: 1; transform: scale(1.15); }
+.pin-btn.pinned { opacity: 1; }
+
+.card-pinned-bar {
+  background: rgba(245,166,35,.08); border: 1px solid rgba(245,166,35,.3);
+  border-radius: 5px; padding: 3px 8px; font-size: 10px;
+  color: var(--gold); font-weight: 700; letter-spacing: .4px; margin-bottom: 8px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   PRICE FLASH ANIMATION
+───────────────────────────────────────────────────────────── */
+@keyframes priceFlash {
+  0%   { background: rgba(56,189,248,.3); border-radius: 3px; }
+  100% { background: transparent; }
+}
+.flashed { animation: priceFlash .6s ease-out; }
+
+/* ─────────────────────────────────────────────────────────────
+   TOAST
+───────────────────────────────────────────────────────────── */
+#toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--surface2); border: 1px solid var(--border);
+  padding: 10px 18px; border-radius: 8px; font-size: 13px;
+  opacity: 0; transform: translateY(10px);
+  transition: all .3s; pointer-events: none; z-index: 999;
+}
+#toast.show { opacity: 1; transform: translateY(0); }
+
+/* ─────────────────────────────────────────────────────────────
+   RESPONSIVE
+───────────────────────────────────────────────────────────── */
+@media (max-width: 680px) {
+  .stat { min-width: 70px; padding: 8px 12px; }
+  .sv   { font-size: 20px; }
+  .cards-grid { grid-template-columns: 1fr; }
+  #prices-age { display: none; }
+}
+/* ── PRIME setup ──────────────────────────────────────── */
+.score-prime {
+  background: linear-gradient(135deg,rgba(245,166,35,.25),rgba(0,217,126,.15));
+  color: var(--gold); border: 1px solid rgba(245,166,35,.6);
+  animation: primeGlow 2s ease-in-out infinite;
+}
+@keyframes primeGlow {
+  0%,100% { box-shadow: 0 0 6px rgba(245,166,35,.3); }
+  50%      { box-shadow: 0 0 14px rgba(245,166,35,.55); }
+}
+.action-prime {
+  background: linear-gradient(135deg,rgba(245,166,35,.1),rgba(0,217,126,.06));
+  border: 1px solid rgba(245,166,35,.45); color: var(--gold);
+}
+/* HTF 5-level */
+.htf-strong_aligned { background:rgba(0,217,126,.18); color:#00ff9f; border:1px solid rgba(0,217,126,.55); font-weight:900; }
+.htf-strong_against { background:rgba(255,61,90,.18);  color:#ff6080; border:1px solid rgba(255,61,90,.55);  font-weight:900; }
+/* BOS + Volume badges */
+.bos-badge {
+  padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  background: rgba(167,139,250,.12); color: var(--ob); border: 1px solid rgba(167,139,250,.35);
+}
+.vol-badge {
+  padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  background: rgba(56,189,248,.1); color: var(--fvg); border: 1px solid rgba(56,189,248,.3);
+}
+/* zone age label */
+.age-badge {
+  padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  background: var(--surface3); color: var(--dim); border: 1px solid var(--border);
+}
+.age-fresh { color: var(--fvg); border-color: rgba(56,189,248,.3); background: rgba(56,189,248,.07); }
+.age-old   { color: var(--short); border-color: rgba(255,61,90,.25); background: rgba(255,61,90,.06); }
+/* zone already wick-tested — less fresh than zone_age implies */
+.wick-badge {
+  padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  background: rgba(245,166,35,.10); color: var(--gold); border: 1px solid rgba(245,166,35,.35);
+}
+/* pre-cap raw score hint — shown when HTF veto knocked the score down */
+.cap-badge {
+  padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  background: rgba(255,61,90,.08); color: #ff8b9c; border: 1px solid rgba(255,61,90,.3);
+  font-family: var(--mono);
+}
+/* ── Stage B: ICT context badges ────────────────────────────────────── */
+/* Premium / Discount alignment (the cornerstone ICT filter) */
+.pd-good {
+  padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  background: rgba(0,217,126,.14); color: var(--long); border: 1px solid rgba(0,217,126,.45);
+}
+.pd-bad {
+  padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  background: rgba(255,61,90,.10); color: var(--short); border: 1px solid rgba(255,61,90,.35);
+}
+.pd-eq {
+  padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  background: var(--surface3); color: var(--dim); border: 1px solid var(--border);
+}
+/* Real liquidity sweep (equal H/L pools — the institutional trigger) */
+.liq-badge {
+  padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 800;
+  background: rgba(255,61,90,.18); color: #ff5d7a; border: 1px solid rgba(255,61,90,.5);
+  animation: liqPulse 1.6s ease-in-out infinite;
+}
+@keyframes liqPulse {
+  0%,100% { box-shadow: 0 0 4px rgba(255,61,90,.25); }
+  50%      { box-shadow: 0 0 10px rgba(255,61,90,.55); }
+}
+/* HTF zone alignment — current zone sits inside same-direction HTF zone */
+.htfz-badge {
+  padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  background: rgba(167,139,250,.18); color: var(--ob); border: 1px solid rgba(167,139,250,.5);
+}
+/* Regime */
+.regime-chop {
+  padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  background: rgba(245,166,35,.08); color: var(--gold); border: 1px solid rgba(245,166,35,.3);
+}
+.regime-exp {
+  padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  background: rgba(56,189,248,.12); color: var(--fvg); border: 1px solid rgba(56,189,248,.4);
+}
+/* ── BitMart badges ───────────────────────────────────── */
+.bm-badge {
+  padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700;
+  background: rgba(0,191,255,.1); color: #00bfff; border: 1px solid rgba(0,191,255,.3);
+  font-family: var(--mono); letter-spacing: .2px;
+}
+.bm-no-badge {
+  padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600;
+  background: rgba(255,61,90,.05); color: var(--short); border: 1px solid rgba(255,61,90,.18);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   TOP PICKS NOW — plain-English hero for non-technical traders
+   ════════════════════════════════════════════════════════════════════ */
+.top-picks-section {
+  margin: 18px 0 28px;
+}
+.top-picks-head {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px; margin-bottom: 14px;
+}
+.top-picks-title {
+  font-size: 22px; font-weight: 800; letter-spacing: .2px;
+  display: flex; align-items: center; gap: 10px;
+}
+.top-picks-title .pulse-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--long);
+  box-shadow: 0 0 12px rgba(0,217,126,.7);
+  animation: tpPulse 1.5s ease-in-out infinite;
+}
+@keyframes tpPulse {
+  0%,100% { transform: scale(1);   opacity: 1; }
+  50%      { transform: scale(1.3); opacity: .6; }
+}
+.top-picks-sub {
+  font-size: 12px; color: var(--dim); font-weight: 500;
+}
+.top-picks-grid {
+  display: grid; gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+}
+.tp-card {
+  position: relative;
+  background: linear-gradient(165deg, var(--surface2), var(--surface));
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  padding: 22px 22px 18px;
+  overflow: hidden;
+}
+.tp-card.dir-buy {
+  border-color: rgba(0,217,126,.55);
+  background: linear-gradient(165deg, rgba(0,217,126,.06), var(--surface));
+  box-shadow: 0 0 24px rgba(0,217,126,.12);
+}
+.tp-card.dir-sell {
+  border-color: rgba(255,61,90,.55);
+  background: linear-gradient(165deg, rgba(255,61,90,.06), var(--surface));
+  box-shadow: 0 0 24px rgba(255,61,90,.12);
+}
+.tp-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 4px;
+}
+.tp-card.dir-buy::before  { background: linear-gradient(90deg, transparent, var(--long), transparent); }
+.tp-card.dir-sell::before { background: linear-gradient(90deg, transparent, var(--short), transparent); }
+
+.tp-verdict {
+  font-size: 11px; font-weight: 800; letter-spacing: 1.1px;
+  text-transform: uppercase; padding: 4px 10px; border-radius: 4px;
+  display: inline-flex; align-items: center; gap: 5px; margin-bottom: 10px;
+}
+.tp-verdict.strong {
+  background: rgba(0,217,126,.18); color: #00ff9f;
+  border: 1px solid rgba(0,217,126,.55);
+}
+.tp-verdict.good {
+  background: rgba(245,166,35,.16); color: var(--gold);
+  border: 1px solid rgba(245,166,35,.5);
+}
+.tp-verdict.wait {
+  background: var(--surface3); color: var(--dim);
+  border: 1px solid var(--border);
+}
+.tp-asset-row {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 12px; margin-bottom: 14px;
+}
+.tp-asset-name {
+  font-size: 26px; font-weight: 800; line-height: 1.1; margin-bottom: 4px;
+}
+.tp-asset-sub {
+  font-size: 12px; color: var(--dim); font-family: var(--mono);
+}
+.tp-action {
+  font-size: 28px; font-weight: 900; letter-spacing: 1px;
+  padding: 8px 16px; border-radius: 8px; line-height: 1;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.tp-action.buy  { background: var(--long);  color: #001a10; }
+.tp-action.sell { background: var(--short); color: #2a0008; }
+
+.tp-reason {
+  font-size: 14px; line-height: 1.5; color: var(--text);
+  background: rgba(255,255,255,.03); border-left: 3px solid var(--gold);
+  padding: 10px 12px; border-radius: 4px; margin: 0 0 14px;
+}
+.tp-reason b { color: var(--gold); font-weight: 700; }
+
+.tp-prices {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 1px; background: var(--border); border-radius: 8px;
+  overflow: hidden; margin-bottom: 14px;
+}
+.tp-price-cell {
+  background: var(--surface);
+  padding: 10px 12px; text-align: center;
+}
+.tp-price-lbl {
+  font-size: 10px; color: var(--dim); text-transform: uppercase;
+  letter-spacing: .8px; font-weight: 700; margin-bottom: 4px;
+}
+.tp-price-val {
+  font-size: 17px; font-weight: 800; font-family: var(--mono);
+  letter-spacing: -.3px;
+}
+.tp-price-cell.entry .tp-price-val { color: var(--text); }
+.tp-price-cell.stop  .tp-price-val { color: var(--short); }
+.tp-price-cell.tp    .tp-price-val { color: var(--long); }
+.tp-price-tag {
+  font-size: 9px; color: var(--dim); margin-top: 2px;
+  font-family: var(--mono);
+}
+
+.tp-extra-row {
+  display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;
+  font-size: 11px; color: var(--dim);
+}
+.tp-extra-row .tp-pill {
+  padding: 3px 9px; border-radius: 12px;
+  background: var(--surface3); border: 1px solid var(--border);
+  display: inline-flex; align-items: center; gap: 4px;
+}
+
+.tp-actions {
+  display: flex; gap: 8px;
+}
+.tp-actions a {
+  flex: 1; text-align: center; text-decoration: none;
+  padding: 12px 10px; border-radius: 8px; font-weight: 700;
+  font-size: 13px; transition: all .15s;
+}
+.tp-actions .tp-primary {
+  background: var(--accent); color: #fff;
+  box-shadow: 0 4px 12px rgba(56,189,248,.25);
+}
+.tp-actions .tp-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(56,189,248,.35); }
+.tp-actions .tp-secondary {
+  background: var(--surface3); color: var(--text);
+  border: 1px solid var(--border);
+}
+.tp-bm-warn {
+  font-size: 11px; color: var(--short);
+  background: rgba(255,61,90,.06); border: 1px dashed rgba(255,61,90,.3);
+  border-radius: 6px; padding: 6px 10px; margin-bottom: 12px; text-align: center;
+}
+
+.tp-empty {
+  background: var(--surface2); border: 1px dashed var(--border);
+  border-radius: 12px; padding: 32px 20px; text-align: center;
+  color: var(--dim); font-size: 14px;
+}
+.tp-empty-big { font-size: 20px; color: var(--text); margin-bottom: 6px; }
+
+/* Toggle to hide/show technical detail view */
+.detail-toggle {
+  display: flex; justify-content: center; margin: 8px 0 18px;
+}
+.detail-toggle button {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--dim); padding: 8px 18px; border-radius: 22px;
+  font-size: 12px; cursor: pointer; transition: all .15s;
+}
+.detail-toggle button:hover { color: var(--text); border-color: var(--accent); }
+.detail-collapsed #strong-sec, .detail-collapsed #all-sec, .detail-collapsed #filters { display: none; }
+
+/* ── Top Pick freshness indicator ──────────────────────────── */
+.tp-freshness {
+  position: absolute; top: 16px; right: 16px;
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 700; letter-spacing: .4px;
+  padding: 3px 8px; border-radius: 12px;
+  text-transform: uppercase;
+}
+.fresh-live   { background: rgba(0,217,126,.15); color: var(--long);  border: 1px solid rgba(0,217,126,.4); }
+.fresh-aging  { background: rgba(245,166,35,.12); color: var(--gold); border: 1px solid rgba(245,166,35,.35); }
+.fresh-stale  { background: rgba(255,61,90,.12); color: var(--short); border: 1px solid rgba(255,61,90,.4); }
+.fresh-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor;
+  animation: freshPulse 2s ease-in-out infinite;
+}
+@keyframes freshPulse {
+  0%,100% { opacity: 1; }
+  50%      { opacity: .4; }
+}
+.tp-stale-warn {
+  background: rgba(255,61,90,.10); color: var(--short);
+  border: 1px solid rgba(255,61,90,.35); border-radius: 6px;
+  padding: 8px 12px; margin-bottom: 12px; font-size: 12px;
+  text-align: center; font-weight: 600;
+}
+.tp-recheck-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--border);
+  font-size: 11px; color: var(--dim);
+}
+.tp-recheck-btn {
+  background: var(--surface3); border: 1px solid var(--border); color: var(--text);
+  padding: 5px 11px; border-radius: 6px; font-size: 11px; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+}
+.tp-recheck-btn:hover { border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ══════════════════════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════════════════════ -->
+<header>
+  <div class="header-inner">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="logo">⚡ <span class="logo-accent">FVG</span> &amp; <span class="logo-accent">OB</span> Scanner</div>
+      <div class="scan-pill">
+        <div class="dot" id="scan-dot"></div>
+        <span id="scan-label">Loading…</span>
+      </div>
+      <div class="scan-pill">
+        <div class="dot" id="ws-dot"></div>
+        <span id="ws-label">Crypto connecting…</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <span id="prices-age" class="hdr-meta">Prices: —</span>
+      <span class="hdr-meta">Scan: <strong id="last-scan">—</strong></span>
+      <span class="hdr-meta">Next: <strong id="countdown">—</strong></span>
+      <button class="btn" id="refresh-btn" onclick="triggerScan()">↻ Rescan</button>
+      <button class="alert-bell-btn" onclick="toggleAlertPanel()" title="Alerts">
+        🔔<span id="alert-badge" class="alert-badge" style="display:none">0</span>
+      </button>
+      <a href="/agent" class="btn" style="text-decoration:none" title="Daily auto-agent health check">🤖 Agent</a>
+      <a href="/performance" class="btn" style="text-decoration:none" title="Live signal outcomes vs backtest">📊 Performance</a>
+      <a href="/journal" class="btn" style="text-decoration:none">📓 Journal</a>
+      <a href="/calculator" class="btn btn-primary" style="text-decoration:none">📊 Calculator</a>
+    </div>
+  </div>
+  <!-- Session clock bar -->
+  <div style="max-width:1520px;margin:0 auto;padding:0 20px">
+    <div class="session-bar">
+      <span style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.7px">Sessions:</span>
+      <span class="sess-chip" id="sess-asian">🌏 Asian</span>
+      <span class="sess-chip" id="sess-london">🇬🇧 London</span>
+      <span class="sess-chip" id="sess-ny">🇺🇸 New York</span>
+      <span class="sess-chip" id="sess-nse">🇮🇳 NSE India</span>
+      <span class="sess-clock" id="sess-clock"></span>
+      <span id="sess-advice" style="font-size:11px;color:var(--dim);margin-left:4px"></span>
+    </div>
+  </div>
+  <!-- News blackout strip — always shows next high-impact event -->
+  <div style="max-width:1520px;margin:0 auto;padding:0 20px 0">
+    <div id="news-strip" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 12px;margin:2px 0 4px;font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.7px">📰 Next high-impact</span>
+      <span id="news-next" style="font-weight:600;color:var(--text)">—</span>
+      <span id="news-until" style="color:var(--dim);font-family:var(--mono);font-size:11px">—</span>
+      <span id="news-blackout-warn" style="display:none;margin-left:auto;background:rgba(255,61,90,.18);color:var(--short);border:1px solid rgba(255,61,90,.45);padding:3px 10px;border-radius:12px;font-weight:700;font-size:11px">⚠ IN BLACKOUT — Top Picks suppressed</span>
+    </div>
+  </div>
+</header>
+
+<!-- Alert panel (slide from right) -->
+<div class="alert-panel" id="alert-panel">
+  <div class="alert-panel-head">
+    <h3>🔔 Alerts</h3>
+    <button class="alert-close-btn" onclick="toggleAlertPanel()">×</button>
+  </div>
+  <div class="alert-settings">
+    <div class="as-row">
+      <label>Sound alerts</label>
+      <button class="as-toggle on" id="toggle-sound" onclick="toggleSetting('sound')"></button>
+    </div>
+    <div class="as-row">
+      <label>Browser notifications</label>
+      <button class="as-toggle" id="toggle-notif" onclick="toggleSetting('notif')"></button>
+    </div>
+    <div class="as-score-row">
+      <label>Min score to alert:</label>
+      <input type="range" min="1" max="10" value="8" id="alert-score-slider"
+        oninput="alertSettings.minScore=+this.value;document.getElementById('alert-score-val').textContent=this.value">
+      <span id="alert-score-val">8</span>
+    </div>
+    <div style="font-size:11px;color:var(--dim)">Alerts fire when price enters a zone or a liquidity sweep is detected.</div>
+    <button class="btn" style="font-size:11px;padding:4px 10px" onclick="clearAlerts()">Clear all alerts</button>
+  </div>
+  <div class="alert-log" id="alert-log">
+    <div class="no-alerts">No alerts yet.<br>Alerts fire when price enters a high-score zone.</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     TOP PICKS NOW — plain-English best trades right now
+══════════════════════════════════════════════════════════ -->
+<div class="top-picks-section" id="top-picks-section">
+  <div class="top-picks-head">
+    <div class="top-picks-title">
+      <span class="pulse-dot"></span>
+      Top Picks — What to Trade Right Now
+    </div>
+    <div class="top-picks-sub">Best 1–3 setups · Entry, Stop, Target shown · Updates every scan</div>
+  </div>
+  <div class="top-picks-grid" id="top-picks-grid">
+    <div class="tp-empty">
+      <div class="tp-empty-big">⏳ Scanning markets…</div>
+      <div>The best trades will appear here once the scan completes.</div>
+    </div>
+  </div>
+</div>
+
+<div class="detail-toggle">
+  <button id="detail-toggle-btn" onclick="toggleDetailView()">▼ Show all signals & technical details</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     STATS
+══════════════════════════════════════════════════════════ -->
+<div class="stats-bar">
+  <div class="stat"><div class="sv c-total"  id="s-total">—</div><div class="sl">Total</div></div>
+  <div class="stat"><div class="sv c-long"   id="s-long">—</div><div class="sl">▲ Long</div></div>
+  <div class="stat"><div class="sv c-short"  id="s-short">—</div><div class="sl">▼ Short</div></div>
+  <div class="stat"><div class="sv c-strong" id="s-strong">—</div><div class="sl">★★ Strong</div></div>
+  <div class="stat"><div class="sv c-med"    id="s-med">—</div><div class="sl">★ Medium</div></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     FILTERS
+══════════════════════════════════════════════════════════ -->
+<div class="filters">
+  <div class="fg">
+    <span class="fg-lbl">Category</span>
+    <button class="fbtn on" data-f="cat" data-v="all"          onclick="setF('cat','all')">All</button>
+    <button class="fbtn"    data-f="cat" data-v="Crypto"       onclick="setF('cat','Crypto')">Crypto</button>
+    <button class="fbtn"    data-f="cat" data-v="Commodities"  onclick="setF('cat','Commodities')">Gold/Silver</button>
+    <button class="fbtn"    data-f="cat" data-v="India"        onclick="setF('cat','India')">India</button>
+    <button class="fbtn"    data-f="cat" data-v="USA"          onclick="setF('cat','USA')">USA</button>
+  </div>
+  <div class="fg">
+    <span class="fg-lbl">Direction</span>
+    <button class="fbtn on"    data-f="dir" data-v="all"   onclick="setF('dir','all')">All</button>
+    <button class="fbtn long"  data-f="dir" data-v="LONG"  onclick="setF('dir','LONG')">▲ Long</button>
+    <button class="fbtn short" data-f="dir" data-v="SHORT" onclick="setF('dir','SHORT')">▼ Short</button>
+  </div>
+  <div class="fg">
+    <span class="fg-lbl">Timeframe</span>
+    <button class="fbtn on" data-f="tf" data-v="all"  onclick="setF('tf','all')">All</button>
+    <button class="fbtn"    data-f="tf" data-v="1M"   onclick="setF('tf','1M')">1M</button>
+    <button class="fbtn"    data-f="tf" data-v="15M"  onclick="setF('tf','15M')">15M</button>
+    <button class="fbtn"    data-f="tf" data-v="1H"   onclick="setF('tf','1H')">1H</button>
+    <button class="fbtn"    data-f="tf" data-v="4H"   onclick="setF('tf','4H')">4H</button>
+    <button class="fbtn"    data-f="tf" data-v="1D"   onclick="setF('tf','1D')">1D</button>
+  </div>
+  <div class="fg">
+    <span class="fg-lbl">Strength</span>
+    <button class="fbtn on"  data-f="str" data-v="all"    onclick="setF('str','all')">All</button>
+    <button class="fbtn gold" data-f="str" data-v="strong" onclick="setF('str','strong')">★★ Strong</button>
+    <button class="fbtn"     data-f="str" data-v="medium" onclick="setF('str','medium')">★ Medium</button>
+  </div>
+  <div class="fg">
+    <span class="fg-lbl">Session</span>
+    <button class="fbtn on"  data-f="sess" data-v="all"    onclick="setF('sess','all')">All</button>
+    <button class="fbtn"     data-f="sess" data-v="active" onclick="setF('sess','active')">⚡ Active Now</button>
+    <button class="fbtn"     data-f="sess" data-v="sweep"  onclick="setF('sess','sweep')">🚨 Sweeps</button>
+  </div>
+  <div class="fg">
+    <span class="fg-lbl">Quality</span>
+    <button class="fbtn on"   data-f="sc" data-v="all" onclick="setF('sc','all')">All</button>
+    <button class="fbtn"      data-f="sc" data-v="7"   onclick="setF('sc','7')">7+ Good</button>
+    <button class="fbtn gold" data-f="sc" data-v="9"   onclick="setF('sc','9')">⭐ 9+ Prime</button>
+  </div>
+  <div class="fg">
+    <span class="fg-lbl">Platform</span>
+    <button class="fbtn on"  data-f="bm" data-v="all"     onclick="setF('bm','all')">All</button>
+    <button class="fbtn"     data-f="bm" data-v="bitmart" onclick="setF('bm','bitmart')">📱 BitMart Only</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     STRONG SIGNALS (CARDS)
+══════════════════════════════════════════════════════════ -->
+<div id="strong-sec">
+  <div class="sec-hdr">
+    <h2>★★ Strong — FVG + OB Confluence</h2>
+    <span class="chip" id="c-strong">0</span>
+  </div>
+  <div class="cards-grid" id="cards-grid">
+    <div class="loading"><div class="spin"></div><br>Scanning all markets…</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     ALL SIGNALS (TABLE)
+══════════════════════════════════════════════════════════ -->
+<div id="all-sec">
+  <div class="sec-hdr">
+    <h2>All Signals</h2>
+    <span class="chip" id="c-all">0</span>
+    <span style="font-size:11px;color:var(--dim);margin-left:4px">— click headers to sort</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th onclick="sortBy('score')">Score</th>
+        <th onclick="sortBy('name')">Asset</th>
+        <th onclick="sortBy('category')">Cat</th>
+        <th onclick="sortBy('timeframe')">TF</th>
+        <th onclick="sortBy('direction')">Dir</th>
+        <th>Zone</th>
+        <th onclick="sortBy('entry')">Entry</th>
+        <th onclick="sortBy('sl')">Stop Loss</th>
+        <th>TP 1 (1.5R)</th>
+        <th>TP 2 (3R)</th>
+        <th onclick="sortBy('htf_bias')">HTF</th>
+        <th onclick="sortBy('touch_count')">Fresh</th>
+        <th onclick="sortBy('risk_pct')">Risk%</th>
+        <th onclick="sortBy('reason')">Reason</th>
+        <th></th>
+      </tr></thead>
+      <tbody id="tbody">
+        <tr><td colspan="15" class="empty">Waiting for scan…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</div><!-- .wrap -->
+<div id="toast"></div>
+
+<!-- ══════════════════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════════════════ -->
+<script>
+/* ── State ─────────────────────────────────────────────────────── */
+let allSignals = [];
+let scanInterval = 300;
+let countdown = 300;
+let cdTimer = null;
+
+const F = { cat: 'all', dir: 'all', tf: 'all', str: 'all', sess: 'all', bm: 'all', sc: 'all' };
+let sortCol = 'score', sortAsc = false;
+
+/* ── Alert system ──────────────────────────────────────────── */
+let alertSettings = { sound: true, notif: false, minScore: 8 };   // matches backtest sweet spot
+// Tracks fingerprints we've already alerted for this session so we don't
+// spam the same signal every scan. Cleared when user clicks "Clear alerts".
+let seenSignalKeys = new Set();
+// The *first* signal list we see on page load is considered "baseline" — no
+// "NEW" alerts for those, just the ones that appear after.
+let baselineLocked = false;
+let alertLog = [];
+let firedAlerts = {};   // key → timestamp, prevent spam
+let unreadAlerts = 0;
+
+function toggleAlertPanel() {
+  const p = document.getElementById('alert-panel');
+  p.classList.toggle('open');
+  if (p.classList.contains('open')) {
+    unreadAlerts = 0;
+    updateAlertBadge();
+  }
+}
+
+function toggleSetting(key) {
+  if (key === 'sound')  alertSettings.sound = !alertSettings.sound;
+  if (key === 'notif') {
+    if (!alertSettings.notif) {
+      Notification.requestPermission().then(p => {
+        alertSettings.notif = p === 'granted';
+        document.getElementById('toggle-notif').className = 'as-toggle' + (alertSettings.notif ? ' on' : '');
+      });
+      return;
+    }
+    alertSettings.notif = false;
+  }
+  document.getElementById('toggle-' + key).className = 'as-toggle' + (alertSettings[key] ? ' on' : '');
+}
+
+function playAlertSound(type) {
+  if (!alertSettings.sound) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    if (type === 'sweep') {
+      osc.frequency.setValueAtTime(440, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(1320, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.4, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.5);
+    } else {
+      [0, 0.12, 0.24].forEach((t, i) => {
+        const o2 = ctx.createOscillator();
+        const g2 = ctx.createGain();
+        o2.connect(g2); g2.connect(ctx.destination);
+        o2.frequency.value = [880, 1100, 880][i];
+        g2.gain.setValueAtTime(0.25, ctx.currentTime + t);
+        g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.1);
+        o2.start(ctx.currentTime + t); o2.stop(ctx.currentTime + t + 0.12);
+      });
+    }
+  } catch(e) {}
+}
+
+function fireAlert(sig, type) {
+  const key = type + '|' + pinKey(sig);
+  const now = Date.now();
+  if (firedAlerts[key] && now - firedAlerts[key] < 5 * 60 * 1000) return; // 5 min cooldown
+  firedAlerts[key] = now;
+
+  const emoji = type === 'new'     ? '⭐'
+              : type === 'sweep'   ? '🚨'
+              : type === 'confirm' ? '🕯'
+              :                      '⚡';
+  const action = sig.direction === 'LONG' ? '▲ BUY' : '▼ SELL';
+  const title = type === 'new'
+    ? `${emoji} NEW ${sig.score}/10 setup — ${action} ${sig.name}`
+    : `${emoji} ${sig.name} ${sig.direction}`;
+  const body = type === 'new'
+    ? `${action} ${sig.ticker} at ${fp(sig.current_price)} · ${sig.timeframe} ${sig.reason} · Score ${sig.score}/10`
+    : type === 'sweep'
+    ? `LIQUIDITY SWEEP at ${fp(sig.current_price)} — Score ${sig.score}/10 — Enter now or watch closely`
+    : type === 'confirm'
+    ? `${confirmLabel(sig.confirmation)} at zone — Score ${sig.score}/10 · ${sig.timeframe} ${sig.reason}`
+    : `Price entered zone — Score ${sig.score}/10 · ${sig.timeframe} · ${sig.reason}`;
+
+  playAlertSound(type === 'new' || type === 'sweep' ? 'sweep' : 'zone');
+
+  if (alertSettings.notif && Notification.permission === 'granted') {
+    const n = new Notification(title, {
+      body,
+      tag: key,                 // replaces older notification with same tag
+      requireInteraction: type === 'new',   // sticky for NEW PRIME
+    });
+    // Click notification → focus the scanner AND open the calculator for
+    // this signal in a new tab so the trader can act with one click.
+    n.onclick = () => {
+      window.focus();
+      try { window.open(calcUrl(sig), '_blank'); } catch (_) {}
+      n.close();
+    };
+    if (type !== 'new') setTimeout(() => n.close(), 8000);
+  }
+
+  showToast(`${title}: ${fp(sig.current_price)}`);
+
+  alertLog.unshift({ title, body, time: new Date().toLocaleTimeString(), type, sig });
+  if (alertLog.length > 50) alertLog.pop();
+
+  unreadAlerts++;
+  updateAlertBadge();
+  renderAlertLog();
+}
+
+function updateAlertBadge() {
+  const el = document.getElementById('alert-badge');
+  if (unreadAlerts > 0) {
+    el.style.display = 'flex'; el.textContent = unreadAlerts > 9 ? '9+' : unreadAlerts;
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function renderAlertLog() {
+  const el = document.getElementById('alert-log');
+  if (!alertLog.length) { el.innerHTML = '<div class="no-alerts">No alerts yet.</div>'; return; }
+  el.innerHTML = alertLog.map(a => {
+    const calcLink  = a.sig ? calcUrl(a.sig)  : '#';
+    const chartLink = a.sig ? chartUrl(a.sig) : '#';
+    return `
+    <div class="alert-item">
+      <div class="ai-title ${a.type==='sweep'?'ai-sweep':'ai-zone'}">${a.title}</div>
+      <div class="ai-body">${a.body}</div>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <a href="${calcLink}"  target="_blank" style="font-size:11px;padding:3px 9px;background:var(--accent);color:#fff;text-decoration:none;border-radius:4px;font-weight:600">📊 Calc</a>
+        <a href="${chartLink}" target="_blank" style="font-size:11px;padding:3px 9px;background:var(--surface3);color:var(--text);border:1px solid var(--border);text-decoration:none;border-radius:4px">📈 Chart</a>
+        <span class="ai-time" style="margin-left:auto">${a.time}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function clearAlerts() {
+  alertLog = []; firedAlerts = {}; unreadAlerts = 0;
+  // Also clear seenSignalKeys so the next scan re-announces current signals
+  // as if they were new (useful after a long away-from-desk).
+  seenSignalKeys = new Set();
+  baselineLocked = false;
+  updateAlertBadge(); renderAlertLog();
+}
+
+function checkAlerts(signals) {
+  // On the very first scan after page load, lock in the baseline WITHOUT
+  // firing "NEW" alerts — otherwise the user gets spammed with every
+  // existing high-score signal as if it just appeared.
+  if (!baselineLocked) {
+    signals.forEach(sig => seenSignalKeys.add(pinKey(sig)));
+    baselineLocked = true;
+    return;
+  }
+
+  signals.forEach(sig => {
+    const key = pinKey(sig);
+    const isNew = !seenSignalKeys.has(key);
+    seenSignalKeys.add(key);
+
+    // "NEW setup" alert — fires ONCE when a fresh high-score signal appears.
+    // This is the one you actually want to get pinged for.
+    if (isNew && sig.score >= alertSettings.minScore) {
+      fireAlert(sig, 'new');
+    }
+
+    // Ongoing sweep/zone/confirm alerts — still useful but lower urgency
+    // (no sticky notification, auto-close after 8s).
+    if (sig.score < alertSettings.minScore) return;
+    if (sig.sweep) fireAlert(sig, 'sweep');
+    if (sig.in_zone) fireAlert(sig, 'zone');
+    if (sig.confirmation) fireAlert(sig, 'confirm');
+  });
+}
+
+/* ── Trading sessions ──────────────────────────────────────── */
+const SESSIONS = {
+  asian:  { label:'Asian',    start:0,   end:9*60,          color:'sess-asian' },
+  london: { label:'London',   start:7*60,end:16*60,         color:'sess-london' },
+  ny:     { label:'New York', start:13*60+30,end:22*60,     color:'sess-ny' },
+  nse:    { label:'NSE India',start:3*60+45,end:10*60,      color:'sess-nse' },
+};
+
+function getActiveSessions() {
+  const now = new Date();
+  const utcMin = now.getUTCHours() * 60 + now.getUTCMinutes();
+  return Object.entries(SESSIONS)
+    .filter(([, s]) => utcMin >= s.start && utcMin < s.end)
+    .map(([k]) => k);
+}
+
+function isSignalInActiveSession(sig) {
+  const active = getActiveSessions();
+  const cat = sig.category;
+  if (cat === 'Crypto') return true;
+  if (cat === 'India Stocks') return active.includes('nse');
+  if (cat === 'USA Stocks')   return active.includes('ny');
+  if (cat === 'Commodities')  return active.includes('london') || active.includes('ny');
+  return true;
+}
+
+function updateSessionClock() {
+  const active = getActiveSessions();
+  const now = new Date();
+  const utc = now.toUTCString().slice(17, 22) + ' UTC';
+
+  Object.entries(SESSIONS).forEach(([key, s]) => {
+    const el = document.getElementById('sess-' + key);
+    if (!el) return;
+    const isOn = active.includes(key);
+    el.className = 'sess-chip' + (isOn ? ' active ' + s.color : '');
+  });
+
+  const clockEl = document.getElementById('sess-clock');
+  if (clockEl) clockEl.textContent = utc;
+
+  const advEl = document.getElementById('sess-advice');
+  if (advEl) {
+    if (active.includes('ny') && active.includes('london'))
+      advEl.innerHTML = '<span style="color:var(--long);font-weight:700">⚡ London-NY overlap — highest volume, best time to trade</span>';
+    else if (active.includes('ny'))
+      advEl.innerHTML = '<span style="color:var(--long)">Good for US stocks, Gold, Crypto</span>';
+    else if (active.includes('london'))
+      advEl.innerHTML = '<span style="color:var(--fvg)">Good for Gold, Silver, Crypto</span>';
+    else if (active.includes('nse'))
+      advEl.innerHTML = '<span style="color:var(--gold)">Good for India stocks, Crypto</span>';
+    else if (active.includes('asian'))
+      advEl.innerHTML = '<span style="color:var(--ob)">Asian session — lower volume, Crypto most active</span>';
+    else
+      advEl.innerHTML = '<span style="color:var(--dim)">All major sessions closed — avoid trading, very low volume</span>';
+  }
+}
+
+/* ── Conflict detection ────────────────────────────────────── */
+function buildConflictSet(sigs) {
+  const byTicker = {};
+  sigs.forEach(s => {
+    if (!byTicker[s.ticker]) byTicker[s.ticker] = new Set();
+    byTicker[s.ticker].add(s.direction);
+  });
+  const conflicts = new Set();
+  Object.entries(byTicker).forEach(([ticker, dirs]) => {
+    if (dirs.has('LONG') && dirs.has('SHORT')) conflicts.add(ticker);
+  });
+  return conflicts;
+}
+
+/* ── Beginner guide text ───────────────────────────────────── */
+function buildGuide(s, conflicts) {
+  const hasConflict = conflicts.has(s.ticker);
+  const dirWord = s.direction === 'LONG' ? 'BUY' : 'SELL/SHORT';
+  const dirWhy  = s.direction === 'LONG'
+    ? 'Price is approaching a <strong>demand zone</strong> (support). If buyers step in here, price should move UP.'
+    : 'Price is approaching a <strong>supply zone</strong> (resistance). If sellers step in here, price should move DOWN.';
+
+  const zoneWhy = s.reason === 'FVG+OB'
+    ? `Both a <strong>Fair Value Gap</strong> (price moved too fast, left an imbalance) and an <strong>Order Block</strong> (where large institutions placed orders) overlap here. This is the <strong>highest quality setup</strong>.`
+    : s.reason === 'FVG'
+    ? `A <strong>Fair Value Gap</strong> is present — price moved so fast it skipped this range. Markets often return to fill these gaps.`
+    : `An <strong>Order Block</strong> is present — the last candle before a strong move. Large traders likely have orders here.`;
+
+  const htfText =
+    s.htf_bias === 'strong_aligned'
+    ? `⭐ <strong>PERFECT HTF alignment</strong> — EMA21 AND EMA50 are both lined up with this trade. The big-money trend is fully behind you. This is the best possible condition.`
+    : s.htf_bias === 'aligned'
+    ? `✅ The bigger timeframe trend is in the <strong>same direction</strong> as this trade. You're trading WITH the market — safer.`
+    : s.htf_bias === 'against'
+    ? `⚠️ The bigger timeframe trend is <strong>opposite</strong> to this trade. You'd be fighting the overall market — higher risk. Wait for a better signal.`
+    : s.htf_bias === 'strong_against'
+    ? `🚨 <strong>STRONGLY against HTF trend</strong> — both EMA21 and EMA50 are pointing the other way. This is a very risky trade. Avoid unless you have an exceptional reason.`
+    : `The bigger timeframe trend is <strong>unclear</strong>. Proceed with caution.`;
+
+  const freshText = s.touch_count === 0
+    ? `✅ This zone has <strong>never been tested before</strong>. First touch is almost always the strongest.`
+    : s.touch_count === 1
+    ? `This zone has been tested once before. Still valid but slightly weaker than a fresh zone.`
+    : `This zone has been tested ${s.touch_count + 1} times. The more it's tested, the more likely it eventually breaks.`;
+
+  const sweepText = s.sweep
+    ? `🚨 <strong>LIQUIDITY SWEEP DETECTED</strong> — Price just spiked through the zone edge and came back. This is exactly how professional (institutional) traders set their entries. Retail traders' stop losses get hit, then price reverses. This is the <strong>#1 entry signal.</strong>`
+    : '';
+
+  const confirmText = s.confirmation
+    ? `🕯 <strong>Confirmation candle: ${confirmLabel(s.confirmation)}</strong> — A reversal candle has formed at the zone. The market is visually rejecting this level. Green light to enter.`
+    : '';
+
+  const bosText = (s.bos ?? false)
+    ? `📐 <strong>Break of Structure confirmed</strong> — Price has already broken through a recent high/low in the trade direction. The market structure supports this trade.`
+    : '';
+
+  const volText = (s.vol_strong ?? false)
+    ? `📊 <strong>High-volume zone</strong> — This zone was formed on above-average volume. That means large institutions placed orders here. These zones have a higher probability of holding.`
+    : '';
+
+  const zoneAgeNum = s.zone_age ?? 0;
+  const ageText = zoneAgeNum <= 5
+    ? `🔵 <strong>Very fresh zone</strong> — Formed just ${zoneAgeNum === 0 ? 'now' : zoneAgeNum + ' candles ago'}. The fresher the zone, the more reliable it is.`
+    : zoneAgeNum > 30
+    ? `⏳ <strong>Aging zone</strong> (${zoneAgeNum} candles old) — Older zones can still work but are less reliable. Look for a sweep + confirmation before entering.`
+    : '';
+
+  const actionText = s.score >= 9
+    ? `<div class="gb-action" style="background:linear-gradient(135deg,rgba(245,166,35,.08),rgba(0,217,126,.05));border-color:rgba(245,166,35,.4);color:var(--gold)">⭐ <strong>PRIME SETUP</strong> — All quality checks passed. This is as good as it gets. Set SL at ${fp(s.sl)}, target TP1 at ${fp(s.tp1)} first. Tighten to TP2/TP3 after TP1 hits.</div>`
+    : s.score >= 8
+    ? `<div class="gb-action">✅ <strong>GO setup</strong> — All major quality checks pass. Consider entering when price touches the zone. Set SL at ${fp(s.sl)}, aim for TP1 at ${fp(s.tp1)} first.</div>`
+    : s.score >= 5
+    ? `<div class="gb-action" style="background:rgba(245,166,35,.06);border-color:rgba(245,166,35,.2);color:var(--gold)">⏳ <strong>WAIT setup</strong> — Quality is moderate. Wait for price to actually enter the zone and show a reversal candle before entering. Don't chase.</div>`
+    : `<div class="gb-warn">🚫 <strong>SKIP this setup</strong> — The signal quality is low (trading against trend, zone tested too many times, or weak signal). Better opportunities will come. Patience is a strategy.</div>`;
+
+  const conflictText = hasConflict
+    ? `<div class="gb-warn">⚠️ <strong>Conflicting signals:</strong> ${s.name} has BOTH a LONG and a SHORT signal on different timeframes. The timeframes disagree. Either skip this asset entirely, or only take the signal that matches the higher timeframe (4H/1D) direction.</div>`
+    : '';
+
+  return `
+    <p>${dirWhy}</p>
+    <p style="margin-top:6px">${zoneWhy}</p>
+    <p style="margin-top:6px">${htfText}</p>
+    <p style="margin-top:6px">${freshText}</p>
+    ${ageText     ? `<p style="margin-top:6px">${ageText}</p>` : ''}
+    ${volText     ? `<p style="margin-top:6px">${volText}</p>` : ''}
+    ${bosText     ? `<p style="margin-top:6px">${bosText}</p>` : ''}
+    ${sweepText   ? `<p style="margin-top:6px">${sweepText}</p>` : ''}
+    ${confirmText ? `<p style="margin-top:6px">${confirmText}</p>` : ''}
+    ${actionText}
+    ${conflictText}
+  `;
+}
+
+function confirmLabel(c) {
+  if (c === 'engulfing') return 'Engulfing candle (strong reversal)';
+  if (c === 'pin_bar')   return 'Pin bar / Hammer (rejection)';
+  if (c === 'doji')      return 'Doji (indecision / turning point)';
+  return c;
+}
+
+/* ── Open guide boxes (survives re-renders) ────────────────────── */
+const openGuides = new Set();
+
+/* ── Pinned signals (persisted in localStorage) ────────────────── */
+// Use a plain object stored as JSON — avoids Set serialisation quirks
+localStorage.removeItem('pinnedSignals'); // clear old broken format if present
+let pins = JSON.parse(localStorage.getItem('trade_pins') || '{}');
+
+function pinKey(s) { return s.ticker + '|' + s.direction + '|' + s.timeframe; }
+function isPinned(s) { return !!pins[pinKey(s)]; }
+
+function savePins() {
+  localStorage.setItem('trade_pins', JSON.stringify(pins));
+}
+
+// Called via event delegation — no inline onclick needed
+function togglePin(key) {
+  if (pins[key]) delete pins[key];
+  else           pins[key] = 1;
+  savePins();
+  render();
+}
+
+/* ── Binance WebSocket (real-time crypto prices, free / no key) ── */
+// Maps yfinance ticker → Binance symbol
+const BINANCE_TICKERS = {
+  'BTC-USD': 'btcusdt', 'ETH-USD': 'ethusdt',  'BNB-USD':  'bnbusdt',
+  'SOL-USD': 'solusdt', 'XRP-USD': 'xrpusdt',  'ADA-USD':  'adausdt',
+  'AVAX-USD':'avaxusdt','DOGE-USD':'dogeusdt',  'DOT-USD':  'dotusdt',
+  'LINK-USD':'linkusdt','PAXG-USD':'paxgusdt',  'GC=F':     'xauusdt',
+};
+
+/* BitMart Futures symbol map (yfinance ticker → BitMart symbol) */
+const BITMART_MAP = {
+  'BTC-USD': 'BTC_USDT', 'ETH-USD': 'ETH_USDT', 'BNB-USD': 'BNB_USDT',
+  'SOL-USD': 'SOL_USDT', 'XRP-USD': 'XRP_USDT', 'ADA-USD': 'ADA_USDT',
+  'AVAX-USD':'AVAX_USDT','DOGE-USD':'DOGE_USDT', 'DOT-USD': 'DOT_USDT',
+  'LINK-USD':'LINK_USDT',
+};
+// Reverse map: binance symbol → yfinance ticker
+const BINANCE_REV = Object.fromEntries(
+  Object.entries(BINANCE_TICKERS).map(([k,v]) => [v, k])
+);
+const BINANCE_COVERED = new Set(Object.keys(BINANCE_TICKERS));
+
+let _binanceWs = null;
+let _wsConnected = false;
+
+function connectBinanceWS() {
+  const streams = Object.values(BINANCE_TICKERS).map(s => `${s}@miniTicker`).join('/');
+  const ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`);
+
+  ws.onopen = () => {
+    _wsConnected = true;
+    setWsDot(true);
+  };
+
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if (!msg.data) return;
+    const sym    = (msg.data.s || '').toLowerCase();
+    const ticker = BINANCE_REV[sym];
+    if (!ticker) return;
+    const price = parseFloat(msg.data.c);
+    if (!price || isNaN(price)) return;
+
+    let changed = false;
+    allSignals = allSignals.map(sig => {
+      if (sig.ticker !== ticker) return sig;
+      if (Math.abs(price - sig.current_price) < 1e-9) return sig;
+      changed = true;
+      return enrichSig({ ...sig, current_price: price });
+    });
+    if (changed) queuePriceRender();
+  };
+
+  ws.onerror = () => { _wsConnected = false; setWsDot(false); };
+
+  ws.onclose = () => {
+    _wsConnected = false;
+    setWsDot(false);
+    // Reconnect in 4 seconds
+    setTimeout(connectBinanceWS, 4000);
+  };
+
+  _binanceWs = ws;
+}
+
+function setWsDot(on) {
+  const el = document.getElementById('ws-dot');
+  const lb = document.getElementById('ws-label');
+  if (!el) return;
+  el.className = 'dot ' + (on ? 'live' : '');
+  if (lb) lb.textContent = on ? 'Crypto live' : 'Crypto reconnecting…';
+}
+
+/* ── Throttled price render (max once per 2 s) ─────────────────── */
+// Batches all incoming Binance ticks so the page never rebuilds faster
+// than once every 2 seconds — no more scroll jumping.
+let _priceRenderTimer = null;
+function queuePriceRender() {
+  if (_priceRenderTimer) return;
+  _priceRenderTimer = setTimeout(() => {
+    _priceRenderTimer = null;
+    checkAlerts(allSignals);
+    const sy = window.scrollY;
+    updateStats();
+    render();
+    window.scrollTo(0, sy);
+  }, 2000);
+}
+
+/* ── Boot ──────────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  loadSignals();
+  cdTimer = setInterval(() => {
+    countdown = Math.max(0, countdown - 1);
+    const m = String(Math.floor(countdown/60)).padStart(2,'0');
+    const s = String(countdown % 60).padStart(2,'0');
+    document.getElementById('countdown').textContent = `${m}:${s}`;
+    if (countdown === 0) { loadSignals(); countdown = scanInterval; }
+  }, 1000);
+
+  // Single event listener for ALL pin buttons (avoids inline-onclick bugs)
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.pin-btn');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const key = btn.dataset.key;
+    if (key) togglePin(key);
+  });
+
+  // Guide toggle — stores open state in a Set so it survives re-renders
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.guide-toggle');
+    if (!btn) return;
+    const key = btn.dataset.key;
+    if (!key) return;
+    if (openGuides.has(key)) openGuides.delete(key);
+    else openGuides.add(key);
+    // update this card's DOM directly without a full re-render
+    const box = btn.nextElementSibling;
+    if (box) box.classList.toggle('open', openGuides.has(key));
+    btn.textContent = openGuides.has(key) ? '▲ Hide explanation' : '📖 What does this mean? (tap to learn)';
+  });
+
+  // Session clock — update every 30 seconds
+  updateSessionClock();
+  setInterval(updateSessionClock, 30000);
+
+  // Binance WebSocket for real-time crypto prices
+  connectBinanceWS();
+
+  // Fallback polling every 10 s for non-crypto (stocks, gold, silver)
+  setInterval(updatePrices, 10000);
+});
+
+/* ── Load all signals ──────────────────────────────────────────── */
+async function loadSignals() {
+  try {
+    const r = await fetch('/api/signals');
+    const d = await r.json();
+    window._lastScanISO = d.last_scan;          // for freshness pill
+    allSignals   = (d.signals || []).map(enrichSig);
+    scanInterval = d.next_scan_in || 300;
+    if (!d.scanning) countdown = scanInterval;
+    updateStats();
+    updateHeaderMeta(d);
+    render();
+  } catch(e) { showToast('⚠ Server unreachable'); }
+}
+
+/* ── Trigger manual rescan ─────────────────────────────────────── */
+async function triggerScan() {
+  const btn = document.getElementById('refresh-btn');
+  btn.disabled = true; btn.textContent = '⟳ Scanning…';
+  setDot('active', 'Scanning…');
+  try { await fetch('/api/scan', { method:'POST' }); } catch(e) {}
+
+  const poll = setInterval(async () => {
+    try {
+      const r = await fetch('/api/signals');
+      const d = await r.json();
+      if (!d.scanning) {
+        clearInterval(poll);
+        window._lastScanISO = d.last_scan;
+        allSignals = (d.signals || []).map(enrichSig);
+        updateStats(); updateHeaderMeta(d); render();
+        btn.disabled = false; btn.textContent = '↻ Rescan';
+        setDot('live', 'Ready');
+        countdown = scanInterval;
+        showToast(`✓ Done — ${allSignals.length} signals found`);
+      }
+    } catch(e) { clearInterval(poll); btn.disabled=false; btn.textContent='↻ Rescan'; }
+  }, 2000);
+}
+
+/* ── Live price update (stocks + commodities only — crypto via WS) */
+async function updatePrices() {
+  if (!allSignals.length) return;
+  try {
+    const r = await fetch('/api/prices');
+    const d = await r.json();
+    if (!d.prices) return;
+
+    let changed = false;
+    allSignals = allSignals.map(sig => {
+      // Skip tickers covered by Binance WebSocket
+      if (_wsConnected && BINANCE_COVERED.has(sig.ticker)) return sig;
+      const np = d.prices[sig.ticker];
+      if (np == null || np <= 0) return sig;
+      if (Math.abs(np - sig.current_price) < 1e-9) return sig;
+      changed = true;
+      return enrichSig({ ...sig, current_price: np });
+    });
+
+    if (d.updated) {
+      const t = new Date(d.updated);
+      document.getElementById('prices-age').textContent = `Prices: ${t.toLocaleTimeString()}`;
+    }
+
+    if (changed) queuePriceRender();
+  } catch(e) {}
+}
+
+/* ── Enrich signal: add entry/sl/tp/in_zone ────────────────────── */
+function enrichSig(sig) {
+  const SL = 0.002;
+  const p  = sig.current_price;
+  let sl, risk;
+
+  if (sig.direction === 'LONG') {
+    sl   = sig.zone_bottom * (1 - SL);
+    risk = Math.max(p - sl, p * 0.001);
+    return {
+      ...sig,
+      entry:    p,
+      sl,
+      tp1:      p + 1.5 * risk,
+      tp2:      p + 3.0 * risk,
+      tp3:      p + 5.0 * risk,
+      risk_pct: Math.abs(p - sl) / p * 100,
+      dist_pct: distPct(p, sig.zone_bottom, sig.zone_top),
+      in_zone:  p >= sig.zone_bottom && p <= sig.zone_top,
+    };
+  } else {
+    sl   = sig.zone_top * (1 + SL);
+    risk = Math.max(sl - p, p * 0.001);
+    return {
+      ...sig,
+      entry:    p,
+      sl,
+      tp1:      p - 1.5 * risk,
+      tp2:      p - 3.0 * risk,
+      tp3:      p - 5.0 * risk,
+      risk_pct: Math.abs(sl - p) / p * 100,
+      dist_pct: distPct(p, sig.zone_bottom, sig.zone_top),
+      in_zone:  p >= sig.zone_bottom && p <= sig.zone_top,
+    };
+  }
+}
+
+function distPct(price, bot, top) {
+  const mid = (bot + top) / 2;
+  return Math.abs(price - mid) / mid * 100;
+}
+
+/* ── Stats ─────────────────────────────────────────────────────── */
+function updateStats() {
+  const vis = applyFilters(allSignals);
+  document.getElementById('s-total').textContent  = vis.length;
+  document.getElementById('s-long').textContent   = vis.filter(s=>s.direction==='LONG').length;
+  document.getElementById('s-short').textContent  = vis.filter(s=>s.direction==='SHORT').length;
+  document.getElementById('s-strong').textContent = vis.filter(s=>s.strength===2).length;
+  document.getElementById('s-med').textContent    = vis.filter(s=>s.strength===1).length;
+}
+
+/* ── Header meta ───────────────────────────────────────────────── */
+function updateHeaderMeta(d) {
+  if (d.last_scan) {
+    document.getElementById('last-scan').textContent =
+      new Date(d.last_scan).toLocaleTimeString();
+  }
+  setDot(d.scanning ? 'active' : 'live', d.scanning ? 'Scanning…' : 'Live');
+}
+
+function setDot(state, label) {
+  const dot = document.getElementById('scan-dot');
+  const lbl = document.getElementById('scan-label');
+  dot.className = 'dot ' + (state === 'active' ? 'active' : state === 'live' ? 'live' : '');
+  lbl.textContent = label;
+}
+
+/* ── Filters ───────────────────────────────────────────────────── */
+function setF(key, val) {
+  F[key] = val;
+  document.querySelectorAll(`[data-f="${key}"]`).forEach(b =>
+    b.classList.toggle('on', b.dataset.v === val)
+  );
+  updateStats(); render();
+}
+
+function applyFilters(sigs) {
+  return sigs.filter(s => {
+    if (F.cat !== 'all' && !s.category.includes(F.cat)) return false;
+    if (F.dir !== 'all' && s.direction !== F.dir) return false;
+    if (F.tf  !== 'all' && s.timeframe  !== F.tf)  return false;
+    if (F.str === 'strong' && s.strength !== 2) return false;
+    if (F.str === 'medium' && s.strength !== 1) return false;
+    if (F.sess === 'active' && !isSignalInActiveSession(s)) return false;
+    if (F.sess === 'sweep'  && !s.sweep) return false;
+    if (F.bm   === 'bitmart' && !BITMART_MAP[s.ticker]) return false;
+    if (F.sc   === '7'      && (s.score ?? 0) < 7) return false;
+    if (F.sc   === '9'      && (s.score ?? 0) < 9) return false;
+    return true;
+  });
+}
+
+/* ── Sort ──────────────────────────────────────────────────────── */
+function sortBy(col) {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else { sortCol = col; sortAsc = (col === 'dist_pct' || col === 'risk_pct'); }
+  document.querySelectorAll('th').forEach(th => th.classList.remove('sorted'));
+  event.target.classList.add('sorted');
+  render();
+}
+
+function sorted(sigs) {
+  return [...sigs].sort((a, b) => {
+    // Pinned always first
+    const ap = isPinned(a) ? 1 : 0, bp = isPinned(b) ? 1 : 0;
+    if (ap !== bp) return bp - ap;
+
+    let va = a[sortCol], vb = b[sortCol];
+    if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+    if (va < vb) return sortAsc ? -1 :  1;
+    if (va > vb) return sortAsc ?  1 : -1;
+    return 0;
+  });
+}
+
+/* ── Main render ───────────────────────────────────────────────── */
+let _conflicts = new Set();
+function render() {
+  _conflicts = buildConflictSet(allSignals);
+  const filtered = applyFilters(allSignals);
+  const ordered  = sorted(filtered);
+  const strong   = ordered.filter(s => s.strength === 2);
+
+  document.getElementById('c-strong').textContent = strong.length;
+  document.getElementById('c-all').textContent    = ordered.length;
+
+  renderTopPicks(allSignals);
+  renderCards(strong);
+  renderTable(ordered);
+}
+
+/* ── Top Picks (plain English, action-first) ──────────────────────── */
+function renderTopPicks(allSigs) {
+  const el = document.getElementById('top-picks-grid');
+  if (!el) return;
+  // Pick the best 3: sorted by score (already sorted by API), score>=6 only,
+  // at most one per ticker, and STILL ACTIONABLE (price hasn't moved past
+  // entry by more than the trade's risk distance).
+  // TF-gated ATR-SL backtest (v5) — threshold sweep:
+  //   ≥7: n=98, 46% win, +0.32R (BEST avg R + reliable sample)
+  //   ≥8: n=61, 41% win, +0.17R
+  //   ≥9-10: small samples (n<25) with volatile results
+  // Data calls for threshold ≥7 as the sweet spot.
+  const seen = new Set();
+  const picks = [];
+  const MIN_ELITE = 7;
+  for (const s of allSigs) {
+    if ((s.score ?? 0) < MIN_ELITE) continue;
+    if (seen.has(s.ticker)) continue;
+    if (!isStillActionable(s)) continue;
+    // Skip signals firing during a high-impact news blackout — CPI/FOMC
+    // create fake FVGs that don't mean-revert. The detail grid still
+    // shows these so the user knows they exist.
+    if (s.news_blackout) continue;
+    seen.add(s.ticker);
+    picks.push(s);
+    if (picks.length >= 3) break;
+  }
+
+  if (!picks.length) {
+    el.innerHTML = `
+      <div class="tp-empty">
+        <div class="tp-empty-big">😴 No actionable setups right now</div>
+        <div>Either no strong signals, or price has already moved past the recent entries.<br>The scanner is running every 5 minutes — better setups will come.</div>
+      </div>`;
+    return;
+  }
+
+  el.innerHTML = picks.map(makeTopPickCard).join('');
+}
+
+/**
+ * Is the signal still tradeable RIGHT NOW?
+ * If price has moved past the entry by more than the trade's own risk
+ * distance, the trade is invalidated — never enter at a worse price than SL.
+ */
+function isStillActionable(s) {
+  const price = s.current_price;
+  const entry = s.entry;
+  const sl    = s.sl;
+  if (price == null || entry == null || sl == null) return true;
+  const riskDist = Math.abs(entry - sl);
+  if (riskDist <= 0) return true;
+
+  if (s.direction === 'LONG') {
+    // For a LONG: bad if price already ran up too far (past entry+risk),
+    // or fell below SL already.
+    if (price <= sl) return false;             // already stopped out
+    if (price > entry + riskDist) return false; // chased too far
+  } else {
+    if (price >= sl) return false;
+    if (price < entry - riskDist) return false;
+  }
+  return true;
+}
+
+function makeTopPickCard(s) {
+  const isLong   = s.direction === 'LONG';
+  const dirCls   = isLong ? 'dir-buy' : 'dir-sell';
+  const actCls   = isLong ? 'buy'      : 'sell';
+  const actText  = isLong ? '▲ BUY'   : '▼ SELL';
+  const sc = s.score ?? 0;
+
+  // Verdict tier
+  let verdict, verdictCls;
+  if (sc >= 9)      { verdict = '⭐ STRONG SETUP';    verdictCls = 'strong'; }
+  else if (sc >= 7) { verdict = '👍 GOOD SETUP';      verdictCls = 'good'; }
+  else              { verdict = '⏸ DECENT — Wait for confirmation'; verdictCls = 'wait'; }
+
+  // Freshness based on last full scan timestamp
+  const fresh = freshnessFor(s);
+  const freshHtml = `<span class="tp-freshness ${fresh.cls}" title="${fresh.tooltip}">
+    <span class="fresh-dot"></span>${fresh.label}
+  </span>`;
+
+  // Stale warning (don't trade on a >5 min old setup without re-checking)
+  const staleWarn = fresh.cls === 'fresh-stale'
+    ? `<div class="tp-stale-warn">⚠ This signal is ${fresh.ageStr} old — price may have moved. Click "Re-check" or open the chart before entering.</div>`
+    : '';
+
+  // Plain-English reason
+  const reasonHtml = buildPlainReason(s);
+
+  // BitMart availability
+  const onBitmart = !!BITMART_MAP[s.ticker];
+  const bmWarn = (!onBitmart && s.category === 'Crypto')
+    ? ''
+    : (!onBitmart
+       ? `<div class="tp-bm-warn">⚠ Not available on BitMart Futures — use a different broker</div>`
+       : '');
+
+  return `
+<div class="tp-card ${dirCls}">
+  ${freshHtml}
+  <span class="tp-verdict ${verdictCls}">${verdict}</span>
+
+  <div class="tp-asset-row">
+    <div>
+      <div class="tp-asset-name">${s.name}</div>
+      <div class="tp-asset-sub">${s.ticker} · ${s.category}${onBitmart ? ' · 📱 BitMart: '+BITMART_MAP[s.ticker] : ''}</div>
+    </div>
+    <div class="tp-action ${actCls}">${actText}</div>
+  </div>
+
+  ${reasonHtml}
+  ${staleWarn}
+  ${bmWarn}
+
+  <div class="tp-prices">
+    <div class="tp-price-cell entry">
+      <div class="tp-price-lbl">Enter at</div>
+      <div class="tp-price-val">${fp(s.entry)}</div>
+      <div class="tp-price-tag">market price</div>
+    </div>
+    <div class="tp-price-cell stop">
+      <div class="tp-price-lbl">Stop loss</div>
+      <div class="tp-price-val">${fp(s.sl)}</div>
+      <div class="tp-price-tag">risk ${(s.risk_pct ?? 0).toFixed(2)}%</div>
+    </div>
+    <div class="tp-price-cell tp">
+      <div class="tp-price-lbl">Target</div>
+      <div class="tp-price-val">${fp(s.tp1)}</div>
+      <div class="tp-price-tag">first profit (1.5×)</div>
+    </div>
+  </div>
+
+  ${sizingAdvice(sc)}
+
+  <div class="tp-extra-row">
+    <span class="tp-pill">${s.timeframe} timeframe</span>
+    <span class="tp-pill">Score ${sc}/10</span>
+    ${s.in_zone ? '<span class="tp-pill" style="background:rgba(245,166,35,.18);color:var(--gold);border-color:rgba(245,166,35,.45)">⚡ Price in zone NOW</span>' : ''}
+  </div>
+
+  <div class="tp-actions">
+    <a class="tp-primary" href="${calcUrl(s)}">📊 Open Calculator (size your trade)</a>
+    <a class="tp-secondary" href="${chartUrl(s)}">📈 Chart</a>
+  </div>
+
+  <div class="tp-recheck-row">
+    <span>Live price: <strong style="color:var(--text);font-family:var(--mono)">${fp(s.current_price)}</strong></span>
+    <button class="tp-recheck-btn" onclick="triggerScan()">↻ Re-check now</button>
+  </div>
+</div>`;
+}
+
+/**
+ * Translate the API "last_scan" timestamp into a freshness pill.
+ * The price itself updates every 10s, but the SIGNAL detection
+ * (zone hits, sweeps, mitigation) only refreshes on the full scan.
+ */
+function freshnessFor(s) {
+  const lastScan = window._lastScanISO;
+  if (!lastScan) return { cls: 'fresh-aging', label: 'Live', ageStr: '?', tooltip: 'Signal age unknown' };
+  const ageSec = Math.max(0, Math.floor((Date.now() - new Date(lastScan).getTime()) / 1000));
+  const ageStr = ageSec < 60 ? ageSec + 's' : Math.floor(ageSec/60) + 'm';
+  if (ageSec < 60) {
+    return { cls: 'fresh-live',  label: 'Live · ' + ageStr,
+             ageStr, tooltip: 'Signal generated in the last minute — fully fresh.' };
+  }
+  if (ageSec < 300) {
+    return { cls: 'fresh-aging', label: 'Aging · ' + ageStr,
+             ageStr, tooltip: 'Signal is 1–5 minutes old — still likely valid; double-check the chart before entering.' };
+  }
+  return { cls: 'fresh-stale', label: 'Stale · ' + ageStr,
+           ageStr, tooltip: 'Signal is over 5 minutes old — price has likely moved. Re-scan before trading.' };
+}
+
+/**
+ * Recommended position-size multiplier — recalibrated from v5 backtest.
+ *
+ * Observed avg R per bucket (TF-gated ATR-SL):
+ *   score 7: +0.57R  (n=37, BEST bucket, biggest reliable sample)
+ *   score 8: +0.39R  (n=38, second-best)
+ *   score 9: -0.06R  (n=14, small-sample volatility)
+ *   score 10: -0.44R (n=9, too few for confidence)
+ *
+ * Counter-intuitively, the backtest says score 7-8 is the sweet spot.
+ * Score 9-10 has small samples with wider variance — sized moderately
+ * until we have more live data confirming they're elite.
+ */
+function sizingAdvice(sc) {
+  let pct, tag, tagCls, hint;
+  if (sc >= 9) {
+    pct = '75%'; tag = 'LARGE SIZE'; tagCls = 'strong';
+    hint = 'Very high technical score, but backtest sample is small (n<25). Size moderately.';
+  } else if (sc >= 8) {
+    pct = '100%'; tag = 'FULL SIZE'; tagCls = 'strong';
+    hint = 'Strong setup with reliable backtest sample — take your normal risk per trade.';
+  } else if (sc >= 7) {
+    pct = '100%'; tag = 'FULL SIZE'; tagCls = 'good';
+    hint = 'Backtest sweet spot — score 7 has the highest observed avg R. Normal size.';
+  } else {
+    return '';   // shouldn't appear in Top Picks under score 7
+  }
+  return `
+    <div style="display:flex;align-items:center;gap:10px;margin:0 0 10px;padding:9px 12px;background:var(--surface2);border:1px dashed var(--border);border-radius:6px">
+      <span class="tp-verdict ${tagCls}" style="margin:0;padding:3px 8px;font-size:9.5px">${tag} · ${pct}</span>
+      <span style="font-size:12px;color:var(--text);line-height:1.4">${hint}</span>
+    </div>`;
+}
+
+/**
+ * Translate the technical signal into ONE plain-English sentence the user
+ * can act on. Picks the 1-2 strongest reasons; ignores the rest.
+ */
+function buildPlainReason(s) {
+  // Reasons are ordered by actual backtest-confirmed edge (Δ win-rate).
+  // Factors that DIDN'T pan out (liq_sweep, htf_zone_align) are shown as
+  // cautions now, not positives — backtest showed they hurt outcomes.
+  const reasons = [];
+
+  // Wick-tagged (+7.5% edge) — biggest backtest-confirmed positive
+  if (s.wick_tagged) {
+    reasons.push('this level was tested before and held — it has proven itself');
+  }
+  // PD aligned (+6.1% edge)
+  if (s.pd_aligned) {
+    reasons.push(s.direction === 'LONG'
+      ? 'price is in the cheap zone (lower half of the recent range)'
+      : 'price is in the expensive zone (upper half of the recent range)');
+  }
+  // HTF bias — "aligned" is actually best bucket (44% win), strong_aligned is WORST
+  if (s.htf_bias === 'aligned') {
+    reasons.push('the trend gently favours this trade (the best setup)');
+  } else if (s.htf_bias === 'strong_against' || s.htf_bias === 'against') {
+    reasons.push('this is a counter-trend reversal — historically these have been solid at zones');
+  }
+  // BOS (+2.6% edge)
+  if (s.bos) reasons.push('the trend just broke (momentum confirmed)');
+  // Confirmation candle
+  if (s.confirmation) {
+    reasons.push('a reversal candle just printed at the level');
+  }
+  // Regime expansion (mild edge)
+  if (s.regime === 'expansion') {
+    reasons.push('the market is moving (breakout conditions)');
+  }
+
+  // Cautions — includes previously-celebrated factors that hurt outcomes
+  const cautions = [];
+  if (s.htf_bias === 'strong_aligned') {
+    cautions.push('⚠ strongly-trending market — zones often break instead of holding. Lower-probability setup');
+  }
+  if (s.liq_sweep) {
+    cautions.push('⚠ a liquidity sweep fired — these fire at well-watched levels, historically less reliable');
+  }
+  if (s.htf_zone_align) {
+    cautions.push('⚠ zone-in-zone with a bigger timeframe — crowded level, extra caution');
+  }
+  if (s.regime === 'chop' && (s.timeframe === '1M' || s.timeframe === '15M')) {
+    cautions.push('⚠ market is choppy — be ready for fakeouts');
+  }
+
+  // Compose 1-2 strongest
+  const top = reasons.slice(0, 3).join('; ');
+  const cautionLine = cautions.slice(0, 1).join('. ');
+
+  if (!top && !cautionLine) {
+    return `<div class="tp-reason">Quality setup with multiple confluences. <b>${s.reason}</b> on the ${s.timeframe} chart at this price level.</div>`;
+  }
+
+  return `<div class="tp-reason">
+    ${top ? `<b>Why this looks good:</b> ${top}.` : ''}
+    ${cautionLine ? `<br>${cautionLine}.` : ''}
+  </div>`;
+}
+
+/* ── Detail view toggle (hide everything but Top Picks) ─────────────── */
+function toggleDetailView() {
+  const body = document.body;
+  const collapsed = body.classList.toggle('detail-collapsed');
+  const btn = document.getElementById('detail-toggle-btn');
+  if (btn) btn.textContent = collapsed
+    ? '▶ Show all signals & technical details'
+    : '▼ Hide all signals & technical details';
+  try { localStorage.setItem('detailCollapsed', collapsed ? '1' : '0'); } catch(_){}
+}
+// On load: default to COLLAPSED (Top Picks only) for new users
+(function applyInitialDetail(){
+  let pref = '1';
+  try { pref = localStorage.getItem('detailCollapsed') ?? '1'; } catch(_){}
+  if (pref === '1') {
+    document.body.classList.add('detail-collapsed');
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('detail-toggle-btn');
+      if (btn) btn.textContent = '▶ Show all signals & technical details';
+    });
+  }
+})();
+
+/* ── News blackout strip (refreshed every 5 min) ───────────────────── */
+async function updateNewsStrip() {
+  try {
+    const r = await fetch('/api/econ_calendar');
+    const d = await r.json();
+    const strip = document.getElementById('news-strip');
+    const nextEl = document.getElementById('news-next');
+    const untilEl = document.getElementById('news-until');
+    const warnEl = document.getElementById('news-blackout-warn');
+    if (!strip) return;
+
+    // Show nearest future event OR current blackout event
+    const evt = d.in_blackout ? d.current_event : (d.next_events && d.next_events[0]);
+    if (!evt) {
+      strip.style.display = 'none';
+      return;
+    }
+    strip.style.display = 'flex';
+
+    const evtDt = new Date(evt.dt_utc);
+    const delta = Math.round((evtDt - new Date()) / 60000);  // minutes
+    const when = Math.abs(delta) < 60
+      ? `${Math.abs(delta)}m ${delta < 0 ? 'ago' : 'away'}`
+      : `${(Math.abs(delta)/60).toFixed(1)}h ${delta < 0 ? 'ago' : 'away'}`;
+
+    nextEl.textContent = `${evt.country} · ${evt.title}`;
+    untilEl.textContent = `${evtDt.toLocaleString([], { hour: '2-digit', minute: '2-digit', month:'short', day:'numeric' })} (${when})`;
+
+    if (d.in_blackout) {
+      strip.style.background = 'rgba(255,61,90,.08)';
+      strip.style.borderColor = 'rgba(255,61,90,.4)';
+      warnEl.style.display = 'inline-block';
+    } else {
+      strip.style.background = 'var(--surface2)';
+      strip.style.borderColor = 'var(--border)';
+      warnEl.style.display = 'none';
+    }
+  } catch (e) { /* swallow — news strip is best-effort */ }
+}
+updateNewsStrip();
+setInterval(updateNewsStrip, 5 * 60 * 1000);   // refresh every 5 min
+
+// Re-render Top Picks every 30s so the freshness pill ages and a stale
+// signal gets filtered out even if the user hasn't moved the page.
+setInterval(() => {
+  if (window.allSignals && window.allSignals.length) {
+    renderTopPicks(window.allSignals);
+  } else if (typeof allSignals !== 'undefined' && allSignals.length) {
+    renderTopPicks(allSignals);
+  }
+}, 30000);
+
+// Proactive notification permission — asked ONCE after the user has been on
+// the page for 10 seconds (they've engaged; pop-up isn't immediate/annoying).
+// Remembered in localStorage so we never ask twice.
+setTimeout(() => {
+  try {
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'default') return;  // already granted or denied
+    if (localStorage.getItem('notifPromptShown') === '1') return;
+    localStorage.setItem('notifPromptShown', '1');
+
+    // Soft prompt first — a toast the user can dismiss without permission grant
+    showToast('🔔 Want a ping when a new PRIME setup appears? Click the bell icon to enable.');
+    setTimeout(() => {
+      // Only auto-request permission if the user hasn't clicked toggle yet
+      if (!alertSettings.notif && Notification.permission === 'default') {
+        Notification.requestPermission().then(p => {
+          if (p === 'granted') {
+            alertSettings.notif = true;
+            const tog = document.getElementById('toggle-notif');
+            if (tog) tog.className = 'as-toggle on';
+            showToast('✓ Notifications enabled — you will be pinged on score-8+ setups.');
+          }
+        });
+      }
+    }, 4000);
+  } catch (_) {}
+}, 10000);
+
+/* ── Cards ─────────────────────────────────────────────────────── */
+function renderCards(sigs) {
+  const el = document.getElementById('cards-grid');
+  if (!sigs.length) {
+    el.innerHTML = '<div class="empty">No strong signals match the current filters.</div>';
+    return;
+  }
+  el.innerHTML = sigs.map(s => makeCard(s, _conflicts)).join('');
+}
+
+function scoreClass(sc) {
+  if (sc >= 9) return 'prime';
+  return sc >= 8 ? 'go' : sc >= 5 ? 'wait' : 'skip';
+}
+function scoreLabel(sc) {
+  if (sc >= 9) return '⭐ PRIME — All conditions perfect';
+  if (sc >= 8) return '✅ GO — High quality setup';
+  if (sc >= 5) return '⏳ WAIT — Confirm before entering';
+  return '🚫 SKIP — Low probability trade';
+}
+function htfLabel(h) {
+  if (h === 'strong_aligned') return '⭐ HTF Strong Aligned';
+  if (h === 'aligned')        return '↑↓ HTF Aligned';
+  if (h === 'against')        return '⚠ HTF Against';
+  if (h === 'strong_against') return '🚨 HTF Strongly Against';
+  return '— HTF Neutral';
+}
+function freshLabel(tc) {
+  if (tc === 0) return '🔵 Fresh zone';
+  if (tc === 1) return '2nd touch';
+  return `${tc + 1}th touch`;
+}
+function freshCls(tc) {
+  return tc === 0 ? 'fresh-0' : tc === 1 ? 'fresh-1' : 'fresh-2';
+}
+
+function makeCard(s, conflicts) {
+  conflicts = conflicts || _conflicts;
+  const dir   = s.direction.toLowerCase();
+  const rb    = reasonClass(s.reason);
+  const dc    = distClass(s.dist_pct);
+  const izCls = s.in_zone ? 'in-zone' : '';
+  const sc    = s.score ?? 5;
+  const scCls = scoreClass(sc);
+
+  const prox = 0.006;
+  const lo   = s.zone_bottom * (1 - prox);
+  const hi   = s.zone_top   * (1 + prox);
+  const rng  = hi - lo || 1;
+  const zL   = Math.max(0, (s.zone_bottom - lo) / rng * 100).toFixed(2);
+  const zW   = Math.min(100, (s.zone_top - s.zone_bottom) / rng * 100).toFixed(2);
+  const pPos = Math.min(100, Math.max(0, (s.current_price - lo) / rng * 100)).toFixed(2);
+  const col  = dir === 'long' ? 'var(--long)' : 'var(--short)';
+
+  const pk     = pinKey(s);
+  const pinned = isPinned(s);
+
+  return `
+<div class="card ${dir} ${izCls}">
+  ${pinned ? '<div class="card-pinned-bar">📌 PINNED — stays at top even when price moves</div>' : ''}
+  <!-- Action banner -->
+  <div class="action-banner action-${scCls}">
+    <div class="score-badge score-${scCls}">${sc}</div>
+    <span style="flex:1">${scoreLabel(sc)}</span>
+    <button class="pin-btn ${pinned?'pinned':''}" data-key="${pk}" title="${pinned?'Unpin':'Pin — keeps at top'}">
+      ${pinned ? '📌' : '📎'}
+    </button>
+  </div>
+  ${sc >= 9 ? `<div style="text-align:center;font-size:10px;letter-spacing:.6px;color:var(--gold);font-weight:700;margin-bottom:8px;text-transform:uppercase">⭐ PRIME SETUP — All quality checks passed ⭐</div>` : ''}
+
+  <div class="card-head">
+    <div>
+      <div class="c-name">${s.name}</div>
+      <div class="c-sub">${s.ticker} · ${s.category}</div>
+    </div>
+    <div class="card-tags">
+      <div class="dir-badge ${dir}">${dir==='long'?'▲ LONG':'▼ SHORT'}</div>
+      <div class="reason-badge ${rb}">${s.reason}</div>
+    </div>
+  </div>
+
+  <div class="card-meta">
+    <span class="tf-badge">${s.timeframe}</span>
+    <span class="star-badge">${'★'.repeat(s.strength)}</span>
+    <span class="htf-chip htf-${s.htf_bias ?? 'neutral'}">${htfLabel(s.htf_bias)}</span>
+    <span class="fresh-chip ${freshCls(s.touch_count ?? 0)}">${freshLabel(s.touch_count ?? 0)}</span>
+    ${s.in_zone ? '<span class="in-zone-badge">⚡ IN ZONE</span>' : ''}
+    ${s.sweep ? '<span class="sweep-badge">🚨 SWEEP</span>' : ''}
+    ${s.confirmation ? `<span class="confirm-badge">🕯 ${confirmLabel(s.confirmation)}</span>` : ''}
+    ${(s.bos ?? false) ? '<span class="bos-badge">📐 Structure Break</span>' : ''}
+    ${(s.vol_strong ?? false) ? '<span class="vol-badge">📊 High Volume</span>' : ''}
+    ${(s.liq_sweep ?? false) ? '<span class="liq-badge" title="Real liquidity sweep — a recent candle wicked through equal highs/lows (where stops cluster) and closed back. This is the #1 institutional entry trigger.">🩸 Liquidity Sweep</span>' : ''}
+    ${(s.htf_zone_align ?? false) ? '<span class="htfz-badge" title="This zone sits inside a same-direction Higher-Timeframe zone — institutional fill area, zone-in-zone confluence.">🏛 HTF Zone</span>' : ''}
+    ${(() => {
+      const pd = s.pd_zone || '';
+      if (!pd) return '';
+      if (s.pd_aligned) {
+        const label = s.direction === 'LONG' ? '💎 Discount Buy' : '💎 Premium Sell';
+        const tt = s.direction === 'LONG'
+          ? 'Price is in the lower half of the recent dealing range — discount is where institutions buy. Aligned.'
+          : 'Price is in the upper half of the recent dealing range — premium is where institutions sell. Aligned.';
+        return `<span class="pd-good" title="${tt}">${label}</span>`;
+      }
+      if (pd === 'equilibrium') return `<span class="pd-eq" title="Price near the 50% line of the dealing range — no PD edge either way.">⚖ Equilibrium</span>`;
+      const wrong = (s.direction === 'LONG' && pd === 'premium') || (s.direction === 'SHORT' && pd === 'discount');
+      if (wrong) {
+        const tt = s.direction === 'LONG'
+          ? 'LONG in the upper half of the range — buying at premium, fighting the range. Lower probability.'
+          : 'SHORT in the lower half of the range — selling at discount, fighting the range. Lower probability.';
+        return `<span class="pd-bad" title="${tt}">⚠ ${s.direction} in ${pd}</span>`;
+      }
+      return '';
+    })()}
+    ${s.regime === 'expansion' ? '<span class="regime-exp" title="Volatility expansion — breakout context, moves follow through. Favorable regime for entries.">🚀 Expansion</span>' : ''}
+    ${s.regime === 'chop' ? `<span class="regime-chop" title="Low-volatility chop — consolidation. FVG/OB strategies bleed here${(s.timeframe==='1M'||s.timeframe==='15M') ? '. Intraday score penalized.' : '.'}">🌪 Chop</span>` : ''}
+    ${(s.wick_tagged ?? false) ? '<span class="wick-badge" title="Price has wicked into this zone before — less fresh than the candle age suggests">💧 Wick-tested</span>' : ''}
+    ${(s.raw_score != null && s.raw_score > s.score) ? `<span class="cap-badge" title="Pre-cap technical score was ${s.raw_score}/10 but capped because trade is against the higher-timeframe trend">⚠ Capped from ${s.raw_score}</span>` : ''}
+    ${(() => { const age = s.zone_age ?? 0; return age <= 5 ? `<span class="age-badge age-fresh">🔵 ${age === 0 ? 'Just formed' : age + ' candles old'}</span>` : age > 30 ? `<span class="age-badge age-old">⏳ ${age}c old</span>` : ''; })()}
+    ${conflicts && conflicts.has(s.ticker) ? '<span class="conflict-badge">⚠ Conflicting signals</span>' : ''}
+  </div>
+
+  <!-- Zone bar -->
+  <div class="zone-bar-wrap">
+    <div class="zone-labels">
+      <span>${fp(s.zone_bottom)}</span>
+      <span class="zone-lbl-mid">← ZONE →</span>
+      <span>${fp(s.zone_top)}</span>
+    </div>
+    <div class="zone-bar">
+      <div class="zone-fill"
+        style="left:${zL}%;width:${zW}%;background:${col}28;border:1px solid ${col}55;"></div>
+      <div class="price-pin" style="left:${pPos}%;" title="Current price: ${fp(s.current_price)}"></div>
+    </div>
+    <div class="zone-price-row">
+      <span>Current price: <span class="cur-price">${fp(s.current_price)}</span></span>
+      <span>Dist: <span class="dist-num ${dc}">${s.dist_pct.toFixed(2)}%</span></span>
+    </div>
+  </div>
+
+  <!-- Entry / SL / TP levels -->
+  <div class="levels">
+    <div class="lv-row entry">
+      <span class="lv-lbl">Entry</span>
+      <span class="lv-price">${fp(s.entry)}</span>
+      <span class="lv-tag">Market</span>
+    </div>
+    <div class="lv-row sl">
+      <span class="lv-lbl">Stop Loss</span>
+      <span class="lv-price">${fp(s.sl)}</span>
+      <span class="lv-tag">Risk ${s.risk_pct.toFixed(2)}%</span>
+    </div>
+    <div class="lv-div"></div>
+    <div class="lv-row tp">
+      <span class="lv-lbl">TP 1</span>
+      <span class="lv-price">${fp(s.tp1)}</span>
+      <span class="lv-tag">1.5R</span>
+    </div>
+    <div class="lv-row tp">
+      <span class="lv-lbl">TP 2</span>
+      <span class="lv-price">${fp(s.tp2)}</span>
+      <span class="lv-tag">3.0R</span>
+    </div>
+    <div class="lv-row tp">
+      <span class="lv-lbl">TP 3</span>
+      <span class="lv-price">${fp(s.tp3)}</span>
+      <span class="lv-tag">5.0R</span>
+    </div>
+  </div>
+  <!-- Beginner guide -->
+  <button class="guide-toggle" data-key="${pk}">${openGuides.has(pk) ? '▲ Hide explanation' : '📖 What does this mean? (tap to learn)'}</button>
+  <div class="guide-box ${openGuides.has(pk) ? 'open' : ''}">${buildGuide(s, conflicts)}</div>
+
+  <!-- BitMart indicator -->
+  ${BITMART_MAP[s.ticker]
+    ? `<div style="margin-top:10px;padding:6px 10px;background:rgba(0,191,255,.06);border:1px solid rgba(0,191,255,.2);border-radius:6px;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:11px;color:var(--dim)">📱 BitMart Futures</span>
+        <span style="font-family:var(--mono);font-weight:700;color:#00bfff;font-size:13px">${BITMART_MAP[s.ticker]}</span>
+       </div>`
+    : s.category !== 'Crypto'
+    ? `<div style="margin-top:10px;padding:5px 10px;background:rgba(255,61,90,.04);border:1px solid rgba(255,61,90,.12);border-radius:6px;text-align:center;font-size:11px;color:var(--dim)">❌ Not available on BitMart Futures</div>`
+    : ''}
+  <!-- Action buttons -->
+  <div style="display:flex;gap:6px;margin-top:8px">
+    <a href="${calcUrl(s)}"   class="btn btn-primary" style="flex:1;text-align:center;text-decoration:none;font-size:13px">📊 Calculator</a>
+    <a href="${chartUrl(s)}"  class="btn" style="text-decoration:none;font-size:13px" title="View live chart with FVG & OB zones">📈 Chart</a>
+    <a href="${journalUrl(s)}" class="btn" style="text-decoration:none;font-size:13px" title="Log this trade">📓</a>
+  </div>
+</div>`;
+}
+
+/* ── Table ─────────────────────────────────────────────────────── */
+function renderTable(sigs) {
+  const tbody = document.getElementById('tbody');
+  if (!sigs.length) {
+    tbody.innerHTML = '<tr><td colspan="15" class="empty">No signals match filters.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = sigs.map(makeRow).join('');
+}
+
+function makeRow(s) {
+  const dir   = s.direction.toLowerCase();
+  const rb    = reasonClass(s.reason);
+  const izCls = s.in_zone ? 'in-zone-row' : '';
+  const izMk  = s.in_zone ? ' ⚡' : '';
+  const sc    = s.score ?? 5;
+  const scCls = scoreClass(sc);
+  const tc    = s.touch_count ?? 0;
+
+  const wickInd = (s.wick_tagged ?? false) ? ' 💧' : '';
+  const capInd  = (s.raw_score != null && s.raw_score > s.score) ? ` <span class="cap-badge" title="Capped from ${s.raw_score} — against HTF trend">⚠${s.raw_score}</span>` : '';
+
+  return `<tr class="${izCls}">
+    <td><span class="score-badge score-${scCls}" style="width:28px;height:28px;font-size:13px" title="${s.wick_tagged ? 'Zone has been wick-tested (less fresh)' : ''}${s.raw_score != null && s.raw_score > s.score ? ' — pre-cap raw score: ' + s.raw_score + '/10' : ''}">${sc}</span>${capInd}<span style="color:var(--gold);font-size:11px;margin-left:2px" title="Wick-tested zone">${wickInd}</span></td>
+    <td class="ta-asset"><div class="tn">${s.name}${izMk}</div><div class="tick">${s.ticker}${BITMART_MAP[s.ticker] ? ` &nbsp;<span class="bm-badge">${BITMART_MAP[s.ticker]}</span>` : s.category !== 'Crypto' ? ` &nbsp;<span class="bm-no-badge">❌ BitMart N/A</span>` : ''}</div></td>
+    <td style="font-size:11px;color:var(--dim)">${s.category}</td>
+    <td><span class="tf-badge">${s.timeframe}</span></td>
+    <td class="ta-dir ${dir}">${dir==='long'?'▲ LONG':'▼ SHORT'}</td>
+    <td class="ta-mono" style="color:var(--dim)">${fp(s.zone_bottom)} – ${fp(s.zone_top)}</td>
+    <td class="ta-mono">${fp(s.entry)}</td>
+    <td class="ta-sl">${fp(s.sl)}</td>
+    <td class="ta-tp">${fp(s.tp1)}</td>
+    <td class="ta-tp" style="opacity:.7">${fp(s.tp2)}</td>
+    <td><span class="htf-chip htf-${s.htf_bias ?? 'neutral'}" style="font-size:10px">${s.htf_bias === 'aligned' ? '✓ Aligned' : s.htf_bias === 'against' ? '✗ Against' : '— Neutral'}</span></td>
+    <td><span class="fresh-chip ${freshCls(tc)}" style="font-size:10px">${tc === 0 ? 'Fresh' : tc + 1 + 'x'}</span></td>
+    <td class="ta-mono ${s.risk_pct < 0.5 ? 'dist-ok' : s.risk_pct < 1.5 ? 'dist-warn' : 'dist-far'}">${s.risk_pct.toFixed(2)}%</td>
+    <td><span class="reason-badge ${rb}">${s.reason}</span></td>
+    <td style="white-space:nowrap;display:flex;gap:4px;align-items:center">
+      <button class="pin-btn ${isPinned(s)?'pinned':''}" data-key="${pinKey(s)}" title="${isPinned(s)?'Unpin':'Pin to top'}">${isPinned(s)?'📌':'📎'}</button>
+      <a href="${calcUrl(s)}"  class="btn btn-primary" style="padding:4px 10px;font-size:11px;text-decoration:none">📊 Calc</a>
+      <a href="${chartUrl(s)}" class="btn" style="padding:4px 10px;font-size:11px;text-decoration:none" title="Chart">📈</a>
+    </td>
+  </tr>`;
+}
+
+/* ── Helpers ───────────────────────────────────────────────────── */
+function fp(p) {
+  if (p == null) return '—';
+  if (p >= 10000) return p.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if (p >= 100)   return p.toLocaleString('en-US',{minimumFractionDigits:3,maximumFractionDigits:3});
+  if (p >= 1)     return p.toFixed(4);
+  return p.toFixed(6);
+}
+
+function distClass(d) {
+  return d < 0.3 ? 'dist-ok' : d < 1.5 ? 'dist-warn' : 'dist-far';
+}
+
+function reasonClass(r) {
+  if (r.includes('+')) return 'rb-fvgob';
+  if (r === 'FVG')     return 'rb-fvg';
+  return 'rb-ob';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function journalUrl(s) {
+  const p = new URLSearchParams({
+    ticker:    s.ticker,
+    name:      s.name,
+    direction: s.direction,
+    entry:     s.entry,
+    sl:        s.sl,
+    tp1:       s.tp1,
+    tp2:       s.tp2,
+    tf:        s.timeframe,
+    reason:    s.reason,
+  });
+  return '/journal?' + p.toString();
+}
+
+function _sigParams(s) {
+  return new URLSearchParams({
+    ticker:      s.ticker,
+    name:        s.name,
+    direction:   s.direction,
+    entry:       s.entry,
+    sl:          s.sl,
+    zone_bottom: s.zone_bottom,
+    zone_top:    s.zone_top,
+    timeframe:   s.timeframe,
+    reason:      s.reason,
+    category:    s.category,
+    score:        s.score ?? 5,
+    htf_bias:     s.htf_bias ?? 'neutral',
+    touch_count:  s.touch_count ?? 0,
+    sweep:        s.sweep ? '1' : '0',
+    confirmation: s.confirmation ?? '',
+    zone_age:     s.zone_age ?? 0,
+    vol_strong:   (s.vol_strong ?? false) ? '1' : '0',
+    bos:          (s.bos ?? false) ? '1' : '0',
+  });
+}
+
+function calcUrl(s)    { return '/calculator?' + _sigParams(s).toString(); }
+function chartUrl(s)   { return '/chart?'      + _sigParams(s).toString(); }
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "github_user":   "YOUR_GITHUB_USERNAME_HERE",
+  "github_repo":   "trade-signals",
+  "github_branch": "main",
+  "auto_update":   true
+}
