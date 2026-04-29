@@ -14,10 +14,14 @@ ASSETS = {
         ("LINK-USD", "Chainlink"),
     ],
     "Commodities": [
-        ("XAUUSD=X", "XAU/USD"),    # gold spot price (forex)
-        ("PAXG-USD", "PAX Gold"),   # crypto-backed gold token
-        ("GC=F",     "Gold"),       # gold futures
-        ("SI=F",     "Silver"),     # silver futures
+        # Yahoo dropped XAUUSD=X from the free forex feed (returns 404).
+        # GLD (SPDR Gold Trust) tracks spot gold within ~0.05% and is the
+        # cleanest free proxy for spot XAU/USD.
+        ("GLD",      "Gold (Spot Proxy)"),  # SPDR Gold ETF — yfinance, tracks XAUUSD
+        ("PAXG-USD", "PAX Gold"),           # crypto-backed gold (Binance)
+        ("GC=F",     "Gold Futures"),       # CME front-month (yfinance)
+        ("SI=F",     "Silver Futures"),     # CME front-month (yfinance)
+        ("SLV",      "Silver (Spot Proxy)"),# iShares Silver Trust ETF
     ],
     "India Stocks": [
         ("RELIANCE.NS",   "Reliance"),
