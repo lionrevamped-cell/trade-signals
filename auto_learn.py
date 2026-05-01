@@ -277,7 +277,12 @@ def learn(lookback_days: int = LOOKBACK_DAYS, force: bool = False) -> dict:
 
 
 def current_weights() -> dict:
-    """For UI: return current learned weights + when they were last updated."""
+    """For UI: return current learned weights + when they were last updated.
+
+    `updated_at` = when weights last actually CHANGED (only on applied=True runs).
+    `last_run_at` = when the learner last RAN (regardless of whether it changed
+    anything). `last_run_status` summarises why it didn't change if applicable.
+    """
     cur = _load_current_weights()
     meta = {}
     if WEIGHTS_FILE.exists():
@@ -286,12 +291,39 @@ def current_weights() -> dict:
                 meta = json.load(f)
         except Exception:
             pass
+
+    last_run_at = None
+    last_run_status = None
+    last_run_trade_count = None
+    history = _load_history()
+    if history:
+        last = history[-1]
+        last_run_at = last.get("generated_at")
+        last_run_trade_count = last.get("trade_count")
+        if last.get("applied"):
+            last_run_status = "weights updated"
+        else:
+            # Common reasons: noise (most common), insufficient sample, paused
+            noise_held = sum(1 for f in last.get("factors", []) if f.get("noise"))
+            skipped    = sum(1 for f in last.get("factors", []) if f.get("skipped"))
+            if last.get("reason"):
+                last_run_status = last["reason"]
+            elif noise_held:
+                last_run_status = f"no factor crossed noise threshold ({noise_held} held)"
+            elif skipped:
+                last_run_status = f"insufficient sample on {skipped} factors"
+            else:
+                last_run_status = "no change needed"
+
     return {
-        "weights":     cur,
-        "defaults":    DEFAULT_WEIGHTS,
-        "updated_at":  meta.get("updated_at"),
-        "trade_count": meta.get("trade_count"),
-        "paused":      PAUSE_FLAG_FILE.exists(),
+        "weights":              cur,
+        "defaults":             DEFAULT_WEIGHTS,
+        "updated_at":           meta.get("updated_at"),         # last APPLIED change
+        "trade_count":          meta.get("trade_count"),
+        "last_run_at":          last_run_at,                    # last attempt
+        "last_run_status":      last_run_status,
+        "last_run_trade_count": last_run_trade_count,
+        "paused":               PAUSE_FLAG_FILE.exists(),
     }
 
 

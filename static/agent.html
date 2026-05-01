@@ -85,6 +85,7 @@ h2{margin:26px 0 10px;font-size:14px;color:var(--dim);text-transform:uppercase;l
   <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
     <span style="font-size:14px;font-weight:700">Weights auto-tune from live outcomes daily</span>
     <span id="learn-status-pill" style="font-size:11px;padding:3px 9px;border-radius:12px;background:var(--surface3);color:var(--dim);border:1px solid var(--border)">—</span>
+    <span id="learn-status-sub" style="font-size:11px;color:var(--dim);width:100%;margin-top:4px"></span>
     <span style="margin-left:auto;display:flex;gap:6px">
       <button onclick="runLearn()" id="learn-run-btn" style="background:var(--accent);color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-weight:600;font-size:12px">↻ Learn now</button>
       <button onclick="togglePause()" id="learn-pause-btn" style="background:var(--surface3);color:var(--text);border:1px solid var(--border);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px">⏸ Pause</button>
@@ -189,10 +190,18 @@ async function loadLearn() {
       pill.style.background = 'rgba(245,166,35,.12)'; pill.style.color = 'var(--gold)';
       pauseBtn.textContent = '▶ Resume';
     } else {
-      const updated = d.updated_at ? new Date(d.updated_at).toLocaleString() : 'never';
-      pill.textContent = '🟢 Active · last run ' + updated;
+      const lastRun     = d.last_run_at ? new Date(d.last_run_at).toLocaleString() : 'never';
+      const lastChange  = d.updated_at  ? new Date(d.updated_at).toLocaleString() : null;
+      const status      = d.last_run_status || '';
+      const trades      = d.last_run_trade_count != null ? ` · ${d.last_run_trade_count} trades` : '';
+      pill.textContent  = `🟢 Active · last ran ${lastRun}${trades}`;
       pill.style.background = 'rgba(0,217,126,.12)'; pill.style.color = 'var(--long)';
       pauseBtn.textContent = '⏸ Pause';
+      // Add a sub-line under the pill explaining what happened on the last run
+      const sub = document.getElementById('learn-status-sub');
+      if (sub) sub.textContent = status
+        ? (lastChange ? `${status}. Weights last changed ${lastChange}.` : status)
+        : '';
     }
     // Render weights as colored chips: defaults vs current
     const cur = d.weights || {}; const def = d.defaults || {};
